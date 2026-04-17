@@ -1,0 +1,15 @@
+{
+  "name": "hacker-assist",
+  "version": "1.0.0",
+  "description": "Control your Claude Code session by voice from your phone — hackerassist.com",
+  "author": "Hacker Assist",
+  "type": "channel",
+  "runtime": "bun",
+  "main": "src/index.ts",
+  "install": {
+    "command": "bun install"
+  },
+  "homepage": "https://hackerassist.com",
+  "repository": "https://github.com/yourusername/hacker-assist-plugin",
+  "keywords": ["voice", "mobile", "channel", "pwa", "hackerassist"]
+}
