@@ -5,11 +5,11 @@ https://hackerassist.com
 
 ## Install
 
-/plugin install hacker-assist@marketplace.hackerassist.com
+/plugin install hackerassist@marketplace.hackerassist.com
 
 ## Usage
 
-claude --channels plugin:hacker-assist@marketplace.hackerassist.com
+claude --channels plugin:hackerassist@marketplace.hackerassist.com
 
 A pairing code appears in your terminal.
 Open https://app.hackerassist.com on your phone and enter the code.
@@ -17,7 +17,7 @@ Open https://app.hackerassist.com on your phone and enter the code.
 ## Research preview
 
 Until the plugin is on Anthropic's approved allowlist, use:
-claude --dangerously-load-development-channels plugin:hacker-assist@marketplace.hackerassist.com
+claude --dangerously-load-development-channels plugin:hackerassist@marketplace.hackerassist.com
 
 ## Self-hosted relay
 

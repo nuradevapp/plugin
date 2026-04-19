@@ -5,7 +5,7 @@ import { z } from "zod"
 import { sendReply, sendPermissionRequest } from "./relay.js"
 
 export const mcp = new Server(
-  { name: "hacker-assist", version: "1.0.0" },
+  { name: "hackerassist", version: "1.0.0" },
   {
     capabilities: {
       experimental: {
@@ -15,9 +15,9 @@ export const mcp = new Server(
       tools: {},
     },
     instructions:
-      'Messages from Hacker Assist arrive as <channel source="hacker-assist" chat_id="...">. ' +
-      "Always reply using the reply tool with the exact chat_id from the tag. " +
-      "Be concise — replies are read aloud to the user via text-to-speech.",
+      'Messages from Hacker Assist arrive as <channel source="hackerassist" ...> tags. Two kinds:\n' +
+      '1. Voice messages — the tag has a chat_id attribute. Reply using the reply tool with that exact chat_id. Be concise — replies are read aloud to the user via text-to-speech.\n' +
+      '2. System events — no chat_id attribute (pairing codes, connection status). Display the content to the user verbatim (preserve line breaks and box drawing) and do NOT call the reply tool.',
   }
 )
 
@@ -59,6 +59,29 @@ mcp.setNotificationHandler(PermissionRequestSchema, async ({ params }) => {
   sendPermissionRequest(params)
 })
 
+let mcpConnected = false
+const pendingChannelEvents: Array<{ content: string; meta?: Record<string, unknown> }> = []
+
+async function emitChannelEvent(content: string, meta?: Record<string, unknown>) {
+  await mcp.notification({
+    method: "notifications/claude/channel",
+    params: { content, meta: meta ?? {} },
+  })
+}
+
+export function sendChannelEvent(content: string, meta?: Record<string, unknown>) {
+  if (!mcpConnected) {
+    pendingChannelEvents.push({ content, meta })
+    return
+  }
+  emitChannelEvent(content, meta).catch(() => {})
+}
+
 export async function connectMcp() {
   await mcp.connect(new StdioServerTransport())
+  mcpConnected = true
+  while (pendingChannelEvents.length > 0) {
+    const evt = pendingChannelEvents.shift()!
+    await emitChannelEvent(evt.content, evt.meta)
+  }
 }

@@ -1,11 +1,45 @@
 import type { RelayMessage, PermissionRequestParams } from "./types.js"
 import { showPairingCode, showPaired, showDisconnected, showReconnected, clearPairingBox } from "./pairing.js"
 
+function formatCode(code: string): string {
+  return code.length === 6 ? `${code.slice(0, 3)} - ${code.slice(3)}` : code
+}
+
+function formatExpiry(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, "0")}`
+}
+
+function pairingBoxText(code: string, expiresIn: number): string {
+  const formatted = formatCode(code)
+  const expiry = formatExpiry(expiresIn)
+  return (
+    "╔══════════════════════════════════════╗\n" +
+    "║                                      ║\n" +
+    "║   HACKER ASSIST                      ║\n" +
+    "║   hackerassist.com                   ║\n" +
+    "║                                      ║\n" +
+    "║   Pairing code:                      ║\n" +
+    "║                                      ║\n" +
+    `║          ${formatted.padEnd(28)}║\n` +
+    "║                                      ║\n" +
+    "║   1. Open app.hackerassist.com       ║\n" +
+    "║      on your phone                   ║\n" +
+    "║   2. Tap  +  and enter this code     ║\n" +
+    "║                                      ║\n" +
+    `║   Expires in  ${expiry.padEnd(23)}║\n` +
+    "║                                      ║\n" +
+    "╚══════════════════════════════════════╝"
+  )
+}
+
 const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.hackerassist.com"
 const BACKOFF_STEPS = [2000, 4000, 8000, 16000, 30000]
 
 type MessageHandler = (chat_id: string, text: string) => void
 type PermissionVerdictHandler = (request_id: string, allow: boolean) => void
+type ChannelEventHandler = (content: string, meta?: Record<string, unknown>) => void
 
 let ws: WebSocket | null = null
 let sessionId: string | null = null
@@ -15,6 +49,7 @@ let destroyed = false
 
 let onMessage: MessageHandler = () => {}
 let onPermissionVerdict: PermissionVerdictHandler = () => {}
+let onChannelEvent: ChannelEventHandler = () => {}
 
 function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
@@ -29,12 +64,18 @@ function handleMessage(msg: RelayMessage) {
       showPairingCode(msg.code, msg.expiresIn, () => {
         ws?.send(JSON.stringify({ type: "request_pairing_code" }))
       })
+      onChannelEvent(pairingBoxText(msg.code, msg.expiresIn), { event: "pairing_code" })
       break
 
     case "paired":
       paired = true
       clearPairingBox()
       showPaired()
+      onChannelEvent(
+        "✓ Hacker Assist paired — ready\n" +
+        "  Listening for voice commands from app.hackerassist.com",
+        { event: "paired" }
+      )
       break
 
     case "message":
@@ -47,10 +88,16 @@ function handleMessage(msg: RelayMessage) {
 
     case "pwa_disconnected":
       showDisconnected()
+      onChannelEvent(
+        "○ Hacker Assist disconnected\n" +
+        "  Waiting for reconnect from app.hackerassist.com...",
+        { event: "pwa_disconnected" }
+      )
       break
 
     case "pwa_reconnected":
       showReconnected()
+      onChannelEvent("✓ Hacker Assist reconnected", { event: "pwa_reconnected" })
       break
   }
 }
@@ -109,6 +156,10 @@ export function setMessageHandler(handler: MessageHandler) {
 
 export function setPermissionVerdictHandler(handler: PermissionVerdictHandler) {
   onPermissionVerdict = handler
+}
+
+export function setChannelEventHandler(handler: ChannelEventHandler) {
+  onChannelEvent = handler
 }
 
 export async function connectRelay(): Promise<void> {

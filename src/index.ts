@@ -1,5 +1,5 @@
-import { connectRelay, setMessageHandler, setPermissionVerdictHandler, sendThinking } from "./relay.js"
-import { mcp, connectMcp } from "./mcp.js"
+import { connectRelay, setMessageHandler, setPermissionVerdictHandler, setChannelEventHandler, sendThinking } from "./relay.js"
+import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
 import { randomUUID } from "crypto"
 
 function generateChatId(): string {
@@ -7,6 +7,9 @@ function generateChatId(): string {
 }
 
 async function main() {
+  // Route relay channel events (pairing code, paired, disconnect, reconnect) to MCP
+  setChannelEventHandler(sendChannelEvent)
+
   // 1-3. Connect to relay, register, and request pairing code
   try {
     await connectRelay()
