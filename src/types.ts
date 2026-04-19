@@ -10,7 +10,7 @@ export type PluginMessage =
 export type RelayMessage =
   | { type: "registered"; sessionId: string }
   | { type: "pairing_code"; code: string; expiresIn: number }
-  | { type: "paired"; deviceId: string }
+  | { type: "paired"; deviceId: string; pluginToken: string; pluginTokenId: string }
   | { type: "message"; chat_id: string; text: string }
   | { type: "permission_verdict"; request_id: string; allow: boolean }
   | { type: "pwa_disconnected" }
