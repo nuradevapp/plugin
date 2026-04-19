@@ -128,6 +128,9 @@ function handleClose(ev: Event) {
 function scheduleReconnect() {
   const delay = BACKOFF_STEPS[Math.min(reconnectAttempt, BACKOFF_STEPS.length - 1)]
   reconnectAttempt++
+  if (reconnectAttempt === 5) {
+    process.stderr.write("Still unable to pair. Check your relay URL and network.\n")
+  }
   setTimeout(reconnect, delay)
 }
 
