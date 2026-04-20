@@ -70,4 +70,6 @@ async function main() {
   await sendMessages(sessionId, messages)
 }
 
-main().catch(() => process.exit(0))
+if (import.meta.path === Bun.main) {
+  main().catch(() => process.exit(0))
+}
