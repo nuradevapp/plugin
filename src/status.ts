@@ -30,15 +30,14 @@ function isAckStale(): boolean {
 async function sendMessages(sessionId: string, messages: string[]) {
   const ws = new WebSocket(`${RELAY_URL}?client=status`)
   await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("timeout")), 5000)
+    const timer = setTimeout(() => { ws.close(); reject(new Error("timeout")) }, 5000)
     ws.addEventListener("open", () => {
       for (const text of messages) {
         ws.send(JSON.stringify({ type: "status", session_id: sessionId, text }))
       }
       ws.close()
-      clearTimeout(timer)
-      resolve()
     })
+    ws.addEventListener("close", () => { clearTimeout(timer); resolve() })
     ws.addEventListener("error", (e) => { clearTimeout(timer); reject(e) })
   })
 }
