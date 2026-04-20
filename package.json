@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "bun run src/index.ts",
-    "dev": "bun --watch src/index.ts"
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
