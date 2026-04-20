@@ -55,6 +55,7 @@ function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
     case "registered":
       sessionId = msg.sessionId
+      Bun.write("/tmp/hackerassist-session", msg.sessionId).catch(() => {})
       if (!paired) {
         ws!.send(JSON.stringify({ type: "request_pairing_code" }))
       }
@@ -140,6 +141,10 @@ function reconnect() {
 
 export function sendReply(chat_id: string, text: string) {
   ws?.send(JSON.stringify({ type: "reply", chat_id, text }))
+}
+
+export function sendReplyWithDetail(chat_id: string, message: string, full_content: string) {
+  ws?.send(JSON.stringify({ type: "reply_with_detail", chat_id, message, full_content }))
 }
 
 export function sendPermissionRequest(params: PermissionRequestParams) {
