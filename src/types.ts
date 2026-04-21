@@ -15,8 +15,8 @@ export type RelayMessage =
   | { type: "paired"; deviceId: string }
   | { type: "message"; chat_id: string; text: string }
   | { type: "permission_verdict"; request_id: string; allow: boolean }
-  | { type: "pwa_disconnected" }
-  | { type: "pwa_reconnected" }
+  | { type: "app_disconnected" }
+  | { type: "app_reconnected" }
 
 export interface PermissionRequestParams {
   request_id: string

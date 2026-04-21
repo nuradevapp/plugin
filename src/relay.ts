@@ -87,18 +87,18 @@ function handleMessage(msg: RelayMessage) {
       onPermissionVerdict(msg.request_id, msg.allow)
       break
 
-    case "pwa_disconnected":
+    case "app_disconnected":
       showDisconnected()
       onChannelEvent(
         "○ Hacker Assist disconnected\n" +
         "  Waiting for reconnect from app.hackerassist.com...",
-        { event: "pwa_disconnected" }
+        { event: "app_disconnected" }
       )
       break
 
-    case "pwa_reconnected":
+    case "app_reconnected":
       showReconnected()
-      onChannelEvent("✓ Hacker Assist reconnected", { event: "pwa_reconnected" })
+      onChannelEvent("✓ Hacker Assist reconnected", { event: "app_reconnected" })
       break
   }
 }
