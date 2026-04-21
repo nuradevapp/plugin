@@ -42,6 +42,30 @@ describe("toolNameToStatus", () => {
     expect(toolNameToStatus("WebFetch", {})).toBe("Searching web...")
   })
 
+  it("maps TaskCreate with title", () => {
+    expect(toolNameToStatus("TaskCreate", { title: "Research auth options" })).toBe("Task: Research auth options")
+  })
+
+  it("maps TaskCreate without title", () => {
+    expect(toolNameToStatus("TaskCreate", {})).toBe("Creating task...")
+  })
+
+  it("maps TaskUpdate with title and status", () => {
+    expect(toolNameToStatus("TaskUpdate", { title: "Research auth options", status: "completed" })).toBe("Task completed: Research auth options")
+  })
+
+  it("maps TaskUpdate with title only", () => {
+    expect(toolNameToStatus("TaskUpdate", { title: "Research auth options" })).toBe("Updating: Research auth options")
+  })
+
+  it("maps TaskUpdate without title", () => {
+    expect(toolNameToStatus("TaskUpdate", {})).toBe("Updating task...")
+  })
+
+  it("maps TaskList", () => {
+    expect(toolNameToStatus("TaskList", {})).toBe("Checking tasks...")
+  })
+
   it("falls back for unknown tool", () => {
     expect(toolNameToStatus("SomethingUnknown", {})).toBe("Working...")
   })

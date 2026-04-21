@@ -18,7 +18,18 @@ export function toolNameToStatus(toolName: string, toolInput: Record<string, unk
     case "Agent":    return "Spawning agent..."
     case "WebSearch":
     case "WebFetch": return "Searching web..."
-    default:         return "Working..."
+    case "TaskCreate": {
+      const title = toolInput.title as string | undefined
+      return title ? `Task: ${title}` : "Creating task..."
+    }
+    case "TaskUpdate": {
+      const title = toolInput.title as string | undefined
+      const status = toolInput.status as string | undefined
+      if (title && status) return `Task ${status}: ${title}`
+      return title ? `Updating: ${title}` : "Updating task..."
+    }
+    case "TaskList":   return "Checking tasks..."
+    default:           return "Working..."
   }
 }
 
