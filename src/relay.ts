@@ -1,5 +1,7 @@
+import { hostname } from "os"
 import type { RelayMessage, PermissionRequestParams } from "./types.js"
 import { showPairingCode, showPaired, showDisconnected, showReconnected, clearPairingBox } from "./pairing.js"
+import { readToken, writeToken, deleteToken } from "./token-file.js"
 
 function formatCode(code: string): string {
   return code.length === 6 ? `${code.slice(0, 3)} - ${code.slice(3)}` : code
@@ -37,6 +39,12 @@ function pairingBoxText(code: string, expiresIn: number): string {
 const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.hackerassist.com"
 const BACKOFF_STEPS = [2000, 4000, 8000, 16000, 30000]
 
+function buildUrl(): string {
+  const t = readToken()
+  const base = `${RELAY_URL}?client=plugin`
+  return t ? `${base}&pluginToken=${encodeURIComponent(t.pluginToken)}` : base
+}
+
 type MessageHandler = (chat_id: string, text: string) => void
 type PermissionVerdictHandler = (request_id: string, allow: boolean) => void
 type ChannelEventHandler = (content: string, meta?: Record<string, unknown>) => void
@@ -57,7 +65,7 @@ function handleMessage(msg: RelayMessage) {
       sessionId = msg.sessionId
       Bun.write("/tmp/hackerassist-session", msg.sessionId).catch(() => {})
       if (!paired) {
-        ws!.send(JSON.stringify({ type: "request_pairing_code" }))
+        ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
       }
       break
 
@@ -70,6 +78,9 @@ function handleMessage(msg: RelayMessage) {
 
     case "paired":
       paired = true
+      if ("pluginToken" in msg && "pluginTokenId" in msg) {
+        writeToken(msg.pluginToken, msg.pluginTokenId)
+      }
       clearPairingBox()
       showPaired()
       onChannelEvent(
@@ -103,15 +114,30 @@ function handleMessage(msg: RelayMessage) {
   }
 }
 
+function handleClose(ev: Event) {
+  if (destroyed) return
+  if ((ev as CloseEvent).code === 4401) {
+    deleteToken()
+    process.stderr.write("This laptop has been unpaired. Re-pair from your phone.\n")
+    paired = false
+    sessionId = null
+  }
+  if (paired) showDisconnected()
+  scheduleReconnect()
+}
+
 function scheduleReconnect() {
   const delay = BACKOFF_STEPS[Math.min(reconnectAttempt, BACKOFF_STEPS.length - 1)]
   reconnectAttempt++
+  if (reconnectAttempt === 5) {
+    process.stderr.write("Still unable to pair. Check your relay URL and network.\n")
+  }
   setTimeout(reconnect, delay)
 }
 
 function reconnect() {
   if (destroyed) return
-  const url = `${RELAY_URL}?client=plugin`
+  const url = buildUrl()
   ws = new WebSocket(url)
 
   ws.addEventListener("open", () => {
@@ -132,11 +158,7 @@ function reconnect() {
     handleMessage(data)
   })
 
-  ws.addEventListener("close", () => {
-    if (destroyed) return
-    if (paired) showDisconnected()
-    scheduleReconnect()
-  })
+  ws.addEventListener("close", handleClose)
 }
 
 export function sendReply(chat_id: string, text: string) {
@@ -169,7 +191,7 @@ export function setChannelEventHandler(handler: ChannelEventHandler) {
 
 export async function connectRelay(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const url = `${RELAY_URL}?client=plugin`
+    const url = buildUrl()
     ws = new WebSocket(url)
 
     const timeout = setTimeout(() => {
@@ -206,11 +228,7 @@ export async function connectRelay(): Promise<void> {
           handleMessage(d)
         })
 
-        ws!.addEventListener("close", () => {
-          if (destroyed) return
-          if (paired) showDisconnected()
-          scheduleReconnect()
-        })
+        ws!.addEventListener("close", handleClose)
       }
     })
 
