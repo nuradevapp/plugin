@@ -1,4 +1,12 @@
-import { connectRelay, setMessageHandler, setPermissionVerdictHandler, setChannelEventHandler, sendThinking } from "./relay.js"
+import {
+  connectRelay,
+  setMessageHandler,
+  setPermissionVerdictHandler,
+  setChannelEventHandler,
+  sendThinking,
+  sendActivityClear,
+  destroyRelay,
+} from "./relay.js"
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
 import { randomUUID } from "crypto"
 
@@ -44,6 +52,14 @@ async function main() {
 
   // 5. Connect MCP to Claude Code via stdio (after relay is ready)
   await connectMcp()
+
+  const shutdown = () => {
+    try { sendActivityClear() } catch { /* ignore */ }
+    destroyRelay()
+    process.exit(0)
+  }
+  process.on("SIGINT", shutdown)
+  process.on("SIGTERM", shutdown)
 }
 
 main()
