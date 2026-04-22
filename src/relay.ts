@@ -177,6 +177,11 @@ export function sendThinking() {
   ws?.send(JSON.stringify({ type: "thinking" }))
 }
 
+export function sendActivityClear() {
+  if (!sessionId) return
+  ws?.send(JSON.stringify({ type: "activity_clear", session_id: sessionId }))
+}
+
 export function setMessageHandler(handler: MessageHandler) {
   onMessage = handler
 }

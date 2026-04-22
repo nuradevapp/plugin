@@ -9,7 +9,18 @@
   "install": {
     "command": "bun install"
   },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*", "command": "bun run ${PLUGIN_DIR}/src/hook.ts --phase=start" }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "command": "bun run ${PLUGIN_DIR}/src/hook.ts --phase=end" }
+    ],
+    "Stop": [
+      { "command": "bun run ${PLUGIN_DIR}/src/hook.ts --phase=stop" }
+    ]
+  },
   "homepage": "https://hackerassist.com",
   "repository": "https://github.com/yourusername/hackerassist-plugin",
-  "keywords": ["voice", "mobile", "channel", "pwa", "hackerassist"]
+  "keywords": ["voice", "mobile", "channel", "hackerassist"]
 }
