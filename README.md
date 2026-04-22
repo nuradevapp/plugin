@@ -22,3 +22,17 @@ claude --dangerously-load-development-channels plugin:hackerassist@marketplace.h
 ## Self-hosted relay
 
 HACKER_ASSIST_RELAY_URL=wss://your-relay.example.com claude --channels ...
+
+## Manual hook installation
+
+If your Claude Code version does not auto-load plugin hooks from the manifest, add to `~/.claude/settings.json`:
+
+~~~json
+{
+  "hooks": {
+    "PreToolUse": [{ "matcher": "*", "command": "bun run /full/path/to/hackerassist-plugin/src/hook.ts --phase=start" }],
+    "PostToolUse": [{ "matcher": "*", "command": "bun run /full/path/to/hackerassist-plugin/src/hook.ts --phase=end" }],
+    "Stop": [{ "command": "bun run /full/path/to/hackerassist-plugin/src/hook.ts --phase=stop" }]
+  }
+}
+~~~
