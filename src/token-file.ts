@@ -6,7 +6,21 @@ const DIR = join(homedir(), ".hackerassist")
 const FILE = join(DIR, "plugin-token.json")
 
 export function readToken(): { pluginToken: string; pluginTokenId: string } | null {
-  if (!existsSync(FILE)) return null
+  if (!existsSync(FILE)) {
+    // One-time migration: fall back to the legacy token.json path used by older plugin versions.
+    const legacy = join(DIR, "token.json")
+    if (!existsSync(legacy)) return null
+    try {
+      const data = JSON.parse(readFileSync(legacy, "utf-8"))
+      if (typeof data.pluginToken !== "string" || typeof data.pluginTokenId !== "string") return null
+      writeToken(data.pluginToken, data.pluginTokenId)
+      unlinkSync(legacy)
+      process.stderr.write("hackerassist: migrated token file to plugin-token.json\n")
+      return { pluginToken: data.pluginToken, pluginTokenId: data.pluginTokenId }
+    } catch {
+      return null
+    }
+  }
   try {
     const data = JSON.parse(readFileSync(FILE, "utf-8"))
     if (typeof data.pluginToken !== "string" || typeof data.pluginTokenId !== "string") return null
