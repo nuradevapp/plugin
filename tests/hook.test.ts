@@ -34,30 +34,56 @@ describe("buildEvents", () => {
     expect(out).toEqual([{ type: "status", session_id: "sess1", text: "Done." }])
   })
 
-  it("emits task_update alongside status+activity for TaskCreate start", () => {
+  it("emits only status+activity for TaskCreate start — ID not yet assigned", () => {
     const out = buildEvents("sess1", "start", {
       tool_use_id: "tu_9",
       tool_name: "TaskCreate",
-      tool_input: { id: "t-1", title: "Ship it", status: "pending", description: "do a thing" },
+      tool_input: { subject: "Ship it", description: "do a thing" },
       timestamp: 1,
     })
     const kinds = out.map((m) => m.type).sort()
-    expect(kinds).toEqual(["activity_event", "status", "task_update"])
-    const task = out.find((m) => m.type === "task_update") as any
-    expect(task.task).toEqual({ id: "t-1", title: "Ship it", status: "pending", description: "do a thing" })
+    expect(kinds).toEqual(["activity_event", "status"])
   })
 
-  it("emits task_update alongside activity_event(end) for TaskUpdate end", () => {
+  it("emits task_update on TaskCreate end by parsing ID from tool_response", () => {
+    const out = buildEvents("sess1", "end", {
+      tool_use_id: "tu_9",
+      tool_name: "TaskCreate",
+      tool_input: { subject: "Ship it", description: "do a thing" },
+      tool_response: "Task #42 created successfully: Ship it",
+      timestamp: 1,
+    })
+    const kinds = out.map((m) => m.type).sort()
+    expect(kinds).toEqual(["activity_event", "task_update"])
+    const task = out.find((m) => m.type === "task_update") as any
+    expect(task.task).toEqual({ id: "42", title: "Ship it", status: "pending", description: "do a thing" })
+  })
+
+  it("emits task_update alongside activity_event(end) for TaskUpdate with subject", () => {
     const out = buildEvents("sess1", "end", {
       tool_use_id: "tu_10",
       tool_name: "TaskUpdate",
-      tool_input: { id: "t-1", title: "Ship it", status: "completed" },
+      tool_input: { taskId: "t-1", subject: "Ship it", status: "completed" },
       timestamp: 2,
     })
     const kinds = out.map((m) => m.type).sort()
     expect(kinds).toEqual(["activity_event", "task_update"])
     const task = out.find((m) => m.type === "task_update") as any
     expect(task.task.status).toBe("completed")
+    expect(task.task.id).toBe("t-1")
+  })
+
+  it("emits task_update for TaskUpdate with status-only (no subject)", () => {
+    const out = buildEvents("sess1", "end", {
+      tool_use_id: "tu_11",
+      tool_name: "TaskUpdate",
+      tool_input: { taskId: "t-2", status: "in_progress" },
+      timestamp: 3,
+    })
+    const kinds = out.map((m) => m.type).sort()
+    expect(kinds).toEqual(["activity_event", "task_update"])
+    const task = out.find((m) => m.type === "task_update") as any
+    expect(task.task).toEqual({ id: "t-2", status: "in_progress" })
   })
 
   it("returns empty when tool_use_id is missing on a start phase", () => {

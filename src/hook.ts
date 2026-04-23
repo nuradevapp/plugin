@@ -1,9 +1,22 @@
-import { existsSync } from "fs"
+import { existsSync, readFileSync } from "fs"
 import { formatActivity } from "./activity.js"
 import type { PluginMessage, TaskSummary } from "./types.js"
 
 const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.hackerassist.com"
-const SESSION_FILE = "/tmp/hackerassist-session"
+
+function getSessionFile(): string {
+  try {
+    // Hook's parent is the shell spawned by Claude Code; grandparent is Claude Code itself.
+    // Plugin's parent is Claude Code directly. Both resolve to the same Claude Code PID.
+    const parentPpid = parseInt(
+      readFileSync(`/proc/${process.ppid}/status`, "utf8").match(/PPid:\s+(\d+)/)?.[1] ?? "0"
+    )
+    if (parentPpid > 0) return `/tmp/hackerassist-session.${parentPpid}`
+  } catch { /* fall through */ }
+  return "/tmp/hackerassist-session"
+}
+
+const SESSION_FILE = getSessionFile()
 
 export type HookPhase = "start" | "end" | "stop"
 
@@ -11,16 +24,18 @@ export interface HookPayload {
   tool_use_id?: string
   tool_name?: string
   tool_input?: Record<string, unknown>
+  tool_response?: string
   timestamp?: number
 }
 
 function toTaskSummary(input: Record<string, unknown>, fallbackStatus: TaskSummary["status"]): TaskSummary | null {
-  const id = input.id as string | undefined
-  const title = input.title as string | undefined
-  if (!id || !title) return null
+  const id = (input.taskId ?? input.id) as string | undefined
+  if (!id) return null
+  const title = (input.subject ?? input.title) as string | undefined
   const status = (input.status as TaskSummary["status"] | undefined) ?? fallbackStatus
   const description = input.description as string | undefined
-  const t: TaskSummary = { id, title, status }
+  const t: TaskSummary = { id, status }
+  if (title) t.title = title
   if (description) t.description = description
   return t
 }
@@ -52,12 +67,21 @@ export function buildEvents(
     event: { id: tool_use_id, phase, tool, summary, timestamp: ts },
   })
 
-  if (tool_name === "TaskCreate" || tool_name === "TaskUpdate") {
-    const fallback = tool_name === "TaskCreate" ? "pending" : "in_progress"
-    const task = toTaskSummary(tool_input ?? {}, fallback)
-    if (task) {
-      out.push({ type: "task_update", session_id: sessionId, task })
+  if (tool_name === "TaskCreate" && phase === "end") {
+    // ID is assigned by Claude Code after creation; parse from response text "Task #N created ..."
+    const match = (payload.tool_response ?? "").match(/Task #(\w+)/)
+    const taskId = match?.[1]
+    const title = (tool_input?.subject ?? tool_input?.title) as string | undefined
+    if (taskId) {
+      const t: TaskSummary = { id: taskId, status: "pending" }
+      if (title) t.title = title
+      const desc = tool_input?.description as string | undefined
+      if (desc) t.description = desc
+      out.push({ type: "task_update", session_id: sessionId, task: t })
     }
+  } else if (tool_name === "TaskUpdate") {
+    const task = toTaskSummary(tool_input ?? {}, "in_progress")
+    if (task) out.push({ type: "task_update", session_id: sessionId, task })
   }
 
   return out

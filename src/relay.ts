@@ -63,7 +63,7 @@ function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
     case "registered":
       sessionId = msg.sessionId
-      Bun.write("/tmp/hackerassist-session", msg.sessionId).catch(() => {})
+      Bun.write(`/tmp/hackerassist-session.${process.ppid}`, msg.sessionId).catch(() => {})
       if (!paired) {
         ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
       }

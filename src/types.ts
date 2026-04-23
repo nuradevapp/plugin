@@ -23,7 +23,7 @@ export type PluginMessage =
 
 export interface TaskSummary {
   id: string
-  title: string
+  title?: string
   status: "pending" | "in_progress" | "completed"
   description?: string
 }
