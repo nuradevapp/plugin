@@ -45,13 +45,13 @@ function buildUrl(): string {
   return t ? `${base}&pluginToken=${encodeURIComponent(t.pluginToken)}` : base
 }
 
-type MessageHandler = (chat_id: string, text: string) => void
+type MessageHandler = (text: string) => void
 type PermissionVerdictHandler = (request_id: string, allow: boolean) => void
 type ChannelEventHandler = (content: string, meta?: Record<string, unknown>) => void
 
 let ws: WebSocket | null = null
 let sessionId: string | null = null
-let paired = false
+let paired = readToken() !== null
 let reconnectAttempt = 0
 let destroyed = false
 
@@ -66,6 +66,13 @@ function handleMessage(msg: RelayMessage) {
       Bun.write(`/tmp/hackerassist-session.${process.ppid}`, msg.sessionId).catch(() => {})
       if (!paired) {
         ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
+      } else {
+        showPaired()
+        onChannelEvent(
+          "✓ Hacker Assist connected — ready\n" +
+          "  Listening for voice commands from app.hackerassist.com",
+          { event: "paired" }
+        )
       }
       break
 
@@ -91,7 +98,7 @@ function handleMessage(msg: RelayMessage) {
       break
 
     case "message":
-      onMessage(msg.chat_id, msg.text)
+      onMessage(msg.text)
       break
 
     case "permission_verdict":
@@ -118,9 +125,15 @@ function handleClose(ev: Event) {
   if (destroyed) return
   if ((ev as CloseEvent).code === 4401) {
     deleteToken()
-    process.stderr.write("This laptop has been unpaired. Re-pair from your phone.\n")
     paired = false
     sessionId = null
+    process.stderr.write("Hacker Assist: token invalid — re-pairing required.\n")
+    onChannelEvent(
+      "⚠ Hacker Assist: re-pairing required\n" +
+      "  Your session token is no longer valid.\n" +
+      "  A new pairing code will appear shortly.",
+      { event: "repairing_required" }
+    )
   }
   if (paired) showDisconnected()
   scheduleReconnect()
@@ -161,12 +174,18 @@ function reconnect() {
   ws.addEventListener("close", handleClose)
 }
 
-export function sendReply(chat_id: string, text: string) {
-  ws?.send(JSON.stringify({ type: "reply", chat_id, text }))
+export function getSessionId(): string | null {
+  return sessionId
 }
 
-export function sendReplyWithDetail(chat_id: string, message: string, full_content: string) {
-  ws?.send(JSON.stringify({ type: "reply_with_detail", chat_id, message, full_content }))
+export function sendReply(text: string) {
+  if (!sessionId) return
+  ws?.send(JSON.stringify({ type: "reply", session_id: sessionId, text }))
+}
+
+export function sendReplyWithDetail(message: string, full_content: string) {
+  if (!sessionId) return
+  ws?.send(JSON.stringify({ type: "reply_with_detail", session_id: sessionId, message, full_content }))
 }
 
 export function sendPermissionRequest(params: PermissionRequestParams) {
