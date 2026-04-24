@@ -1,7 +1,7 @@
 import { hostname } from "os"
 import type { RelayMessage, PermissionRequestParams } from "./types.js"
 import { showPairingCode, showPaired, showDisconnected, showReconnected, clearPairingBox } from "./pairing.js"
-import { readToken, writeToken, deleteToken } from "./token-file.js"
+import { readToken, writeToken, updateSessionId, deleteToken } from "./token-file.js"
 
 function formatCode(code: string): string {
   return code.length === 6 ? `${code.slice(0, 3)} - ${code.slice(3)}` : code
@@ -38,9 +38,10 @@ function pairingBoxText(code: string, expiresIn: number): string {
 
 const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.hackerassist.com"
 const BACKOFF_STEPS = [2000, 4000, 8000, 16000, 30000]
+const cwd = process.cwd()
 
 function buildUrl(): string {
-  const t = readToken()
+  const t = readToken(cwd)
   const base = `${RELAY_URL}?client=plugin`
   return t ? `${base}&pluginToken=${encodeURIComponent(t.pluginToken)}` : base
 }
@@ -51,7 +52,7 @@ type ChannelEventHandler = (content: string, meta?: Record<string, unknown>) => 
 
 let ws: WebSocket | null = null
 let sessionId: string | null = null
-let paired = readToken() !== null
+let paired = readToken(cwd) !== null
 let reconnectAttempt = 0
 let destroyed = false
 
@@ -61,12 +62,20 @@ let onChannelEvent: ChannelEventHandler = () => {}
 
 function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
-    case "registered":
+    case "registered": {
+      const isFirstConnect = sessionId === null
       sessionId = msg.sessionId
       Bun.write(`/tmp/hackerassist-session.${process.ppid}`, msg.sessionId).catch(() => {})
-      if (!paired) {
+      if (paired) updateSessionId(cwd, msg.sessionId)
+      if (!isFirstConnect) {
+        // WebSocket reconnect within the same session — skip re-pairing
+        showReconnected()
+        onChannelEvent("✓ Hacker Assist reconnected", { event: "app_reconnected" })
+      } else if (!paired) {
+        // New directory — request a pairing code
         ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
       } else {
+        // Known directory — connect directly, no re-pairing needed
         showPaired()
         onChannelEvent(
           "✓ Hacker Assist connected — ready\n" +
@@ -75,6 +84,7 @@ function handleMessage(msg: RelayMessage) {
         )
       }
       break
+    }
 
     case "pairing_code":
       showPairingCode(msg.code, msg.expiresIn, () => {
@@ -86,7 +96,7 @@ function handleMessage(msg: RelayMessage) {
     case "paired":
       paired = true
       if ("pluginToken" in msg && "pluginTokenId" in msg) {
-        writeToken(msg.pluginToken, msg.pluginTokenId)
+        writeToken(cwd, msg.pluginToken, msg.pluginTokenId, sessionId ?? "")
       }
       clearPairingBox()
       showPaired()
@@ -124,7 +134,7 @@ function handleMessage(msg: RelayMessage) {
 function handleClose(ev: Event) {
   if (destroyed) return
   if ((ev as CloseEvent).code === 4401) {
-    deleteToken()
+    deleteToken(cwd)
     paired = false
     sessionId = null
     process.stderr.write("Hacker Assist: token invalid — re-pairing required.\n")
@@ -224,7 +234,12 @@ export async function connectRelay(): Promise<void> {
     }, 10000)
 
     ws.addEventListener("open", () => {
-      ws!.send(JSON.stringify({ type: "register_plugin" }))
+      // Send stored sessionId so relay can restore the session for this directory
+      const storedSessionId = readToken(cwd)?.sessionId
+      const msg = storedSessionId
+        ? { type: "register_plugin", sessionId: storedSessionId }
+        : { type: "register_plugin" }
+      ws!.send(JSON.stringify(msg))
     })
 
     ws.addEventListener("message", (event) => {
