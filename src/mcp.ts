@@ -16,7 +16,7 @@ export const mcp = new Server(
     },
     instructions:
       'Messages from Hacker Assist arrive as <channel source="hackerassist" ...> tags. Two kinds:\n' +
-      '1. Voice messages — the tag has a chat_id attribute. Reply using the reply tool with that exact chat_id.\n' +
+      '1. Voice messages — the tag has a chat_id attribute. Reply using the reply tool (no chat_id needed — session-based).\n' +
       '   - Keep the `text` param concise (≤200 chars) — it is read aloud via text-to-speech.\n' +
       '   - If your reply is longer than 2 sentences, summarise it in `text` and put the full response in `full_content`.\n' +
       '2. System events — no chat_id attribute (pairing codes, connection status, tool status). Display the content verbatim (preserve line breaks and box drawing) and do NOT call the reply tool.',
@@ -30,10 +30,6 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
     inputSchema: {
       type: "object",
       properties: {
-        chat_id: {
-          type: "string",
-          description: "chat_id from the inbound channel tag",
-        },
         text: {
           type: "string",
           description: "Reply for text-to-speech — keep it concise, max ~200 chars",
@@ -43,22 +39,21 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
           description: "Full response shown when user taps the card. Use when reply is longer than 2 sentences.",
         },
       },
-      required: ["chat_id", "text"],
+      required: ["text"],
     },
   }],
 }))
 
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (req.params.name === "reply") {
-    const { chat_id, text, full_content } = req.params.arguments as {
-      chat_id: string
+    const { text, full_content } = req.params.arguments as {
       text: string
       full_content?: string
     }
     if (full_content) {
-      sendReplyWithDetail(chat_id, text, full_content)
+      sendReplyWithDetail(text, full_content)
     } else {
-      sendReply(chat_id, text)
+      sendReply(text)
     }
     return { content: [{ type: "text", text: "sent" }] }
   }

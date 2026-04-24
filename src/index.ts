@@ -3,16 +3,12 @@ import {
   setMessageHandler,
   setPermissionVerdictHandler,
   setChannelEventHandler,
+  getSessionId,
   sendThinking,
   sendActivityClear,
   destroyRelay,
 } from "./relay.js"
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
-import { randomUUID } from "crypto"
-
-function generateChatId(): string {
-  return randomUUID()
-}
 
 async function main() {
   // Route relay channel events (pairing code, paired, disconnect, reconnect) to MCP
@@ -27,14 +23,13 @@ async function main() {
   }
 
   // Wire up inbound message handler
-  setMessageHandler(async (chat_id, text) => {
-    const id = generateChatId()
+  setMessageHandler(async (text) => {
     sendThinking()
     await mcp.notification({
       method: "notifications/claude/channel",
       params: {
         content: text,
-        meta: { chat_id: id },
+        meta: { chat_id: getSessionId() },
       },
     })
   })
