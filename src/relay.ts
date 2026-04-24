@@ -65,13 +65,21 @@ function handleMessage(msg: RelayMessage) {
       const isFirstConnect = sessionId === null
       sessionId = msg.sessionId
       Bun.write(`/tmp/hackerassist-session.${process.ppid}`, msg.sessionId).catch(() => {})
-      if (isFirstConnect) {
-        // New Claude Code instance — always request a pairing code
-        ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
-      } else {
+      if (!isFirstConnect) {
         // WebSocket reconnect within the same session — skip re-pairing
         showReconnected()
         onChannelEvent("✓ Hacker Assist reconnected", { event: "app_reconnected" })
+      } else if (!paired) {
+        // New plugin instance, never paired — show pairing code
+        ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
+      } else {
+        // New plugin instance, already paired (token file exists) — reconnect directly
+        showPaired()
+        onChannelEvent(
+          "✓ Hacker Assist connected — ready\n" +
+          "  Listening for voice commands from app.hackerassist.com",
+          { event: "paired" }
+        )
       }
       break
     }
