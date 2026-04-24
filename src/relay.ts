@@ -61,20 +61,20 @@ let onChannelEvent: ChannelEventHandler = () => {}
 
 function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
-    case "registered":
+    case "registered": {
+      const isFirstConnect = sessionId === null
       sessionId = msg.sessionId
       Bun.write(`/tmp/hackerassist-session.${process.ppid}`, msg.sessionId).catch(() => {})
-      if (!paired) {
+      if (isFirstConnect) {
+        // New Claude Code instance — always request a pairing code
         ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
       } else {
-        showPaired()
-        onChannelEvent(
-          "✓ Hacker Assist connected — ready\n" +
-          "  Listening for voice commands from app.hackerassist.com",
-          { event: "paired" }
-        )
+        // WebSocket reconnect within the same session — skip re-pairing
+        showReconnected()
+        onChannelEvent("✓ Hacker Assist reconnected", { event: "app_reconnected" })
       }
       break
+    }
 
     case "pairing_code":
       showPairingCode(msg.code, msg.expiresIn, () => {
