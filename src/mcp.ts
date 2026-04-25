@@ -16,7 +16,7 @@ export const mcp = new Server(
     },
     instructions:
       'Messages from Hacker Assist arrive as <channel source="hackerassist" ...> tags. Two kinds:\n' +
-      '1. Voice messages — the tag has a chat_id attribute. Reply using the reply tool (no chat_id needed — session-based).\n' +
+      '1. Voice messages — the tag has a chat_id attribute. IMMEDIATELY call the reply tool with a brief acknowledgment (e.g. "On it!" or "Got it, working on it.") BEFORE doing any other work. Then do the work, and reply again when done.\n' +
       '   - Keep the `text` param concise (≤200 chars) — it is read aloud via text-to-speech.\n' +
       '   - If your reply is longer than 2 sentences, summarise it in `text` and put the full response in `full_content`.\n' +
       '2. System events — no chat_id attribute (pairing codes, connection status, tool status). Display the content verbatim (preserve line breaks and box drawing) and do NOT call the reply tool.',
