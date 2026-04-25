@@ -19,7 +19,7 @@ export type PluginMessage =
     }
   | { type: "activity_clear"; session_id: string }
   | { type: "permission_request"; request_id: string; tool_name: string; description: string; input_preview: string }
-  | { type: "thinking" }
+  | { type: "thinking"; session_id: string }
 
 export interface TaskSummary {
   id: string

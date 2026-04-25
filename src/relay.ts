@@ -203,7 +203,8 @@ export function sendPermissionRequest(params: PermissionRequestParams) {
 }
 
 export function sendThinking() {
-  ws?.send(JSON.stringify({ type: "thinking" }))
+  if (!sessionId) return
+  ws?.send(JSON.stringify({ type: "thinking", session_id: sessionId }))
 }
 
 export function sendActivityClear() {
