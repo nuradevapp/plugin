@@ -10,6 +10,17 @@ import {
 } from "./relay.js"
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
 
+export function buildChannelContent(
+  text: string,
+  image?: { base64: string; media_type: string }
+): unknown {
+  if (!image) return text
+  return [
+    { type: "image", source: { type: "base64", media_type: image.media_type, data: image.base64 } },
+    { type: "text", text },
+  ]
+}
+
 async function main() {
   // Route relay channel events (pairing code, paired, disconnect, reconnect) to MCP
   setChannelEventHandler(sendChannelEvent)
@@ -23,12 +34,12 @@ async function main() {
   }
 
   // Wire up inbound message handler
-  setMessageHandler(async (text) => {
+  setMessageHandler(async (text, image) => {
     sendThinking()
     await mcp.notification({
       method: "notifications/claude/channel",
       params: {
-        content: text,
+        content: buildChannelContent(text, image),
         meta: { chat_id: getSessionId() },
       },
     })
