@@ -10,10 +10,13 @@ import {
 } from "./relay.js"
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
 
+type ImageBlock = { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+type TextBlock = { type: "text"; text: string }
+
 export function buildChannelContent(
   text: string,
   image?: { base64: string; media_type: string }
-): unknown {
+): string | [ImageBlock, TextBlock] {
   if (!image) return text
   return [
     { type: "image", source: { type: "base64", media_type: image.media_type, data: image.base64 } },
