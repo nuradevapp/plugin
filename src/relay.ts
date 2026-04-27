@@ -46,7 +46,7 @@ function buildUrl(): string {
   return t ? `${base}&pluginToken=${encodeURIComponent(t.pluginToken)}` : base
 }
 
-type MessageHandler = (text: string) => void
+type MessageHandler = (text: string, image?: { base64: string; media_type: string }) => void
 type PermissionVerdictHandler = (request_id: string, allow: boolean) => void
 type ChannelEventHandler = (content: string, meta?: Record<string, unknown>) => void
 
@@ -107,9 +107,13 @@ function handleMessage(msg: RelayMessage) {
       )
       break
 
-    case "message":
-      onMessage(msg.text)
+    case "message": {
+      const image = msg.image_base64 && msg.image_media_type
+        ? { base64: msg.image_base64, media_type: msg.image_media_type }
+        : undefined
+      onMessage(msg.text, image)
       break
+    }
 
     case "permission_verdict":
       onPermissionVerdict(msg.request_id, msg.allow)
@@ -188,14 +192,25 @@ export function getSessionId(): string | null {
   return sessionId
 }
 
-export function sendReply(text: string) {
+export function sendReply(text: string, image?: { base64: string; media_type: string }) {
   if (!sessionId) return
-  ws?.send(JSON.stringify({ type: "reply", session_id: sessionId, text }))
+  ws?.send(JSON.stringify({
+    type: "reply",
+    session_id: sessionId,
+    text,
+    ...(image ? { image_base64: image.base64, image_media_type: image.media_type } : {}),
+  }))
 }
 
-export function sendReplyWithDetail(message: string, full_content: string) {
+export function sendReplyWithDetail(message: string, full_content: string, image?: { base64: string; media_type: string }) {
   if (!sessionId) return
-  ws?.send(JSON.stringify({ type: "reply_with_detail", session_id: sessionId, message, full_content }))
+  ws?.send(JSON.stringify({
+    type: "reply_with_detail",
+    session_id: sessionId,
+    message,
+    full_content,
+    ...(image ? { image_base64: image.base64, image_media_type: image.media_type } : {}),
+  }))
 }
 
 export function sendPermissionRequest(params: PermissionRequestParams) {
