@@ -38,6 +38,14 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
           type: "string",
           description: "Full response shown when user taps the card. Use when reply is longer than 2 sentences.",
         },
+        image_base64: {
+          type: "string",
+          description: "Base64-encoded image to display in the app alongside the text reply.",
+        },
+        image_media_type: {
+          type: "string",
+          description: "MIME type of the image (e.g. image/jpeg, image/png). Defaults to image/jpeg.",
+        },
       },
       required: ["text"],
     },
@@ -46,14 +54,19 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (req.params.name === "reply") {
-    const { text, full_content } = req.params.arguments as {
+    const { text, full_content, image_base64, image_media_type } = req.params.arguments as {
       text: string
       full_content?: string
+      image_base64?: string
+      image_media_type?: string
     }
+    const image = image_base64
+      ? { base64: image_base64, media_type: image_media_type ?? "image/jpeg" }
+      : undefined
     if (full_content) {
-      sendReplyWithDetail(text, full_content)
+      sendReplyWithDetail(text, full_content, image)
     } else {
-      sendReply(text)
+      sendReply(text, image)
     }
     return { content: [{ type: "text", text: "sent" }] }
   }
