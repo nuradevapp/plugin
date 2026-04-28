@@ -1,6 +1,7 @@
 import {
   connectRelay,
   setMessageHandler,
+  setCommandHandler,
   setPermissionVerdictHandler,
   setChannelEventHandler,
   getSessionId,
@@ -35,6 +36,13 @@ async function main() {
     process.stderr.write(`Error: ${(err as Error).message}\n`)
     process.exit(1)
   }
+
+  // Wire up command handler (e.g. /clear from mobile app)
+  setCommandHandler((command) => {
+    if (command === "clear") {
+      sendActivityClear()
+    }
+  })
 
   // Wire up inbound message handler
   setMessageHandler(async (text, image) => {
