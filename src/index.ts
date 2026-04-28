@@ -33,11 +33,15 @@ export function parseVoiceCommand(text: string): string | null {
   return `/${commandName}`
 }
 
-function handleCommand(command: string) {
+export function handleCommand(
+  command: string,
+  activityClear: () => void = sendActivityClear,
+  channelEvent: (cmd: string) => void = sendChannelEvent,
+) {
   if (command === "/clear") {
-    sendActivityClear()
+    activityClear()
   }
-  // unknown commands silently ignored
+  channelEvent(command)
 }
 
 async function main() {
@@ -51,13 +55,6 @@ async function main() {
     process.stderr.write(`Error: ${(err as Error).message}\n`)
     process.exit(1)
   }
-
-  // Wire up command handler (e.g. /clear from mobile app)
-  setCommandHandler((command) => {
-    if (command === "clear") {
-      sendActivityClear()
-    }
-  })
 
   // Wire up inbound message handler
   setMessageHandler(async (text, image) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { parseVoiceCommand } from "../src/index.js"
+import { parseVoiceCommand, handleCommand } from "../src/index.js"
 
 describe("parseVoiceCommand", () => {
   it("returns /clear for 'slash clear'", () => {
@@ -26,21 +26,19 @@ describe("parseVoiceCommand", () => {
 })
 
 describe("handleCommand routing", () => {
-  it("/clear routes to activity clear (via dispatch closure)", () => {
-    let cleared = false
-    const dispatch = (command: string) => {
-      if (command === "/clear") cleared = true
-    }
-    dispatch("/clear")
-    expect(cleared).toBe(true)
+  it("/clear sends activity clear AND forwards /clear to Claude Code", () => {
+    const cleared: number[] = []
+    const channelEvents: string[] = []
+    handleCommand("/clear", () => cleared.push(1), (cmd) => channelEvents.push(cmd))
+    expect(cleared).toHaveLength(1)
+    expect(channelEvents).toEqual(["/clear"])
   })
 
-  it("unknown commands are silently ignored", () => {
-    let cleared = false
-    const dispatch = (command: string) => {
-      if (command === "/clear") cleared = true
-    }
-    dispatch("/unknown")
-    expect(cleared).toBe(false)
+  it("unknown commands are forwarded to Claude Code but do not clear activity", () => {
+    const cleared: number[] = []
+    const channelEvents: string[] = []
+    handleCommand("/compact", () => cleared.push(1), (cmd) => channelEvents.push(cmd))
+    expect(cleared).toHaveLength(0)
+    expect(channelEvents).toEqual(["/compact"])
   })
 })
