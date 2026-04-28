@@ -36,12 +36,15 @@ export function parseVoiceCommand(text: string): string | null {
 export function handleCommand(
   command: string,
   activityClear: () => void = sendActivityClear,
-  channelEvent: (cmd: string) => void = sendChannelEvent,
+  channelEvent: (cmd: string, meta?: Record<string, unknown>) => void = sendChannelEvent,
+  getChatId: () => string | null = getSessionId,
 ) {
   if (command === "/clear") {
     activityClear()
+    return
   }
-  channelEvent(command)
+  const chatId = getChatId()
+  channelEvent(command, chatId ? { chat_id: chatId } : undefined)
 }
 
 async function main() {

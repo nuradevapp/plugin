@@ -26,19 +26,25 @@ describe("parseVoiceCommand", () => {
 })
 
 describe("handleCommand routing", () => {
-  it("/clear sends activity clear AND forwards /clear to Claude Code", () => {
+  it("/clear clears activity but does NOT forward to Claude Code", () => {
     const cleared: number[] = []
-    const channelEvents: string[] = []
-    handleCommand("/clear", () => cleared.push(1), (cmd) => channelEvents.push(cmd))
+    const channelCalls: Array<[string, Record<string, unknown> | undefined]> = []
+    handleCommand("/clear", () => cleared.push(1), (cmd, meta) => channelCalls.push([cmd, meta]), () => "sess1")
     expect(cleared).toHaveLength(1)
-    expect(channelEvents).toEqual(["/clear"])
+    expect(channelCalls).toHaveLength(0)
   })
 
-  it("unknown commands are forwarded to Claude Code but do not clear activity", () => {
+  it("skill commands are forwarded to Claude Code with chat_id set to session ID", () => {
     const cleared: number[] = []
-    const channelEvents: string[] = []
-    handleCommand("/compact", () => cleared.push(1), (cmd) => channelEvents.push(cmd))
+    const channelCalls: Array<[string, Record<string, unknown> | undefined]> = []
+    handleCommand("/reload-plugins", () => cleared.push(1), (cmd, meta) => channelCalls.push([cmd, meta]), () => "sess1")
     expect(cleared).toHaveLength(0)
-    expect(channelEvents).toEqual(["/compact"])
+    expect(channelCalls).toEqual([["/reload-plugins", { chat_id: "sess1" }]])
+  })
+
+  it("forwards without chat_id when session is not yet established", () => {
+    const channelCalls: Array<[string, Record<string, unknown> | undefined]> = []
+    handleCommand("/review", () => {}, (cmd, meta) => channelCalls.push([cmd, meta]), () => null)
+    expect(channelCalls).toEqual([["/review", undefined]])
   })
 })
