@@ -1,44 +1,46 @@
 import { describe, it, expect } from "bun:test"
+import { parseVoiceCommand } from "../src/index.js"
 
-describe("slash command dispatch", () => {
-  it("routes /clear command to handler", () => {
+describe("parseVoiceCommand", () => {
+  it("returns /clear for 'slash clear'", () => {
+    expect(parseVoiceCommand("slash clear")).toBe("/clear")
+  })
+
+  it("is case-insensitive", () => {
+    expect(parseVoiceCommand("Slash Clear")).toBe("/clear")
+  })
+
+  it("returns null for regular messages", () => {
+    expect(parseVoiceCommand("what is the weather")).toBeNull()
+  })
+
+  it("returns null for bare 'slash' with no command", () => {
+    expect(parseVoiceCommand("slash")).toBeNull()
+    expect(parseVoiceCommand("slash ")).toBeNull()
+  })
+
+  it("maps other commands correctly", () => {
+    expect(parseVoiceCommand("slash compact")).toBe("/compact")
+    expect(parseVoiceCommand("slash status")).toBe("/status")
+  })
+})
+
+describe("handleCommand routing", () => {
+  it("/clear routes to activity clear (via dispatch closure)", () => {
     let cleared = false
-    const handler = (command: string) => {
+    const dispatch = (command: string) => {
       if (command === "/clear") cleared = true
     }
-    handler("/clear")
+    dispatch("/clear")
     expect(cleared).toBe(true)
   })
 
-  it("ignores unknown commands without throwing", () => {
+  it("unknown commands are silently ignored", () => {
     let cleared = false
-    const handler = (command: string) => {
+    const dispatch = (command: string) => {
       if (command === "/clear") cleared = true
     }
-    handler("/unknown")
+    dispatch("/unknown")
     expect(cleared).toBe(false)
-  })
-
-  it("voice: 'slash clear' maps to /clear command", () => {
-    const text = "slash clear"
-    const lower = text.trim().toLowerCase()
-    const isCommand = lower.startsWith("slash ")
-    const command = isCommand ? `/${lower.slice(6).trim()}` : null
-    expect(isCommand).toBe(true)
-    expect(command).toBe("/clear")
-  })
-
-  it("voice: 'slash ' prefix is case-insensitive", () => {
-    const text = "Slash Clear"
-    const lower = text.trim().toLowerCase()
-    const isCommand = lower.startsWith("slash ")
-    const command = isCommand ? `/${lower.slice(6).trim()}` : null
-    expect(command).toBe("/clear")
-  })
-
-  it("regular messages are not treated as commands", () => {
-    const text = "what is the weather"
-    const lower = text.trim().toLowerCase()
-    expect(lower.startsWith("slash ")).toBe(false)
   })
 })

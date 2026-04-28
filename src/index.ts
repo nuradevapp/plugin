@@ -25,6 +25,14 @@ export function buildChannelContent(
   ]
 }
 
+export function parseVoiceCommand(text: string): string | null {
+  const lower = text.trim().toLowerCase()
+  if (!lower.startsWith("slash ")) return null
+  const commandName = lower.slice(6).trim()
+  if (!commandName) return null
+  return `/${commandName}`
+}
+
 function handleCommand(command: string) {
   if (command === "/clear") {
     sendActivityClear()
@@ -53,10 +61,9 @@ async function main() {
 
   // Wire up inbound message handler
   setMessageHandler(async (text, image) => {
-    const lower = text.trim().toLowerCase()
-    if (lower.startsWith("slash ")) {
-      const commandName = lower.slice(6).trim()
-      handleCommand(`/${commandName}`)
+    const command = parseVoiceCommand(text)
+    if (command !== null) {
+      handleCommand(command)
       return
     }
     sendThinking()
