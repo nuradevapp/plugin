@@ -25,6 +25,13 @@ export function buildChannelContent(
   ]
 }
 
+function handleCommand(command: string) {
+  if (command === "/clear") {
+    sendActivityClear()
+  }
+  // unknown commands silently ignored
+}
+
 async function main() {
   // Route relay channel events (pairing code, paired, disconnect, reconnect) to MCP
   setChannelEventHandler(sendChannelEvent)
@@ -46,6 +53,12 @@ async function main() {
 
   // Wire up inbound message handler
   setMessageHandler(async (text, image) => {
+    const lower = text.trim().toLowerCase()
+    if (lower.startsWith("slash ")) {
+      const commandName = lower.slice(6).trim()
+      handleCommand(`/${commandName}`)
+      return
+    }
     sendThinking()
     await mcp.notification({
       method: "notifications/claude/channel",
@@ -54,6 +67,11 @@ async function main() {
         meta: { chat_id: getSessionId() },
       },
     })
+  })
+
+  // Wire up relay command handler (bare command name from relay → /command)
+  setCommandHandler((command) => {
+    handleCommand(`/${command}`)
   })
 
   // Wire up permission verdict handler

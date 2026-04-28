@@ -138,6 +138,10 @@ function handleMessage(msg: RelayMessage) {
       showReconnected()
       onChannelEvent("✓ Hacker Assist reconnected", { event: "app_reconnected" })
       break
+
+    case "command":
+      onCommand(msg.command)
+      break
   }
 }
 
