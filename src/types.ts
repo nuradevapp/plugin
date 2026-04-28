@@ -37,6 +37,7 @@ export type RelayMessage =
   | { type: "permission_verdict"; request_id: string; allow: boolean }
   | { type: "app_disconnected" }
   | { type: "app_reconnected" }
+  | { type: "command"; session_id: string; command: string }
 
 export interface PermissionRequestParams {
   request_id: string

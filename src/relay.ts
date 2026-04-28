@@ -49,6 +49,7 @@ function buildUrl(): string {
 type MessageHandler = (text: string, image?: { base64: string; media_type: string }) => void
 type PermissionVerdictHandler = (request_id: string, allow: boolean) => void
 type ChannelEventHandler = (content: string, meta?: Record<string, unknown>) => void
+type CommandHandler = (command: string) => void
 
 let ws: WebSocket | null = null
 let sessionId: string | null = null
@@ -59,6 +60,7 @@ let destroyed = false
 let onMessage: MessageHandler = () => {}
 let onPermissionVerdict: PermissionVerdictHandler = () => {}
 let onChannelEvent: ChannelEventHandler = () => {}
+let onCommand: CommandHandler = () => {}
 
 function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
@@ -114,6 +116,10 @@ function handleMessage(msg: RelayMessage) {
       onMessage(msg.text, image)
       break
     }
+
+    case "command":
+      onCommand(msg.command)
+      break
 
     case "permission_verdict":
       onPermissionVerdict(msg.request_id, msg.allow)
@@ -237,6 +243,10 @@ export function setPermissionVerdictHandler(handler: PermissionVerdictHandler) {
 
 export function setChannelEventHandler(handler: ChannelEventHandler) {
   onChannelEvent = handler
+}
+
+export function setCommandHandler(handler: CommandHandler) {
+  onCommand = handler
 }
 
 export async function connectRelay(): Promise<void> {
