@@ -12,17 +12,30 @@ import {
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
 
 type ImageBlock = { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+type DocumentBlock = { type: "document"; source: { type: "base64"; media_type: string; data: string } }
 type TextBlock = { type: "text"; text: string }
 
 export function buildChannelContent(
   text: string,
-  image?: { base64: string; media_type: string }
-): string | [ImageBlock, TextBlock] {
-  if (!image) return text
-  return [
-    { type: "image", source: { type: "base64", media_type: image.media_type, data: image.base64 } },
-    { type: "text", text },
-  ]
+  image?: { base64: string; media_type: string },
+  file?: { base64: string; name: string; media_type: string }
+): string | Array<ImageBlock | DocumentBlock | TextBlock> {
+  if (image) {
+    return [
+      { type: "image", source: { type: "base64", media_type: image.media_type, data: image.base64 } },
+      { type: "text", text },
+    ]
+  }
+  if (file) {
+    const fileBlock: DocumentBlock | TextBlock =
+      file.media_type === "application/pdf"
+        ? { type: "document", source: { type: "base64", media_type: file.media_type, data: file.base64 } }
+        : file.media_type.startsWith("text/") || file.media_type === "application/json"
+          ? { type: "text", text: `File: ${file.name}\n\n${Buffer.from(file.base64, "base64").toString("utf-8")}` }
+          : { type: "text", text: `File: ${file.name} (${file.media_type}) — binary attachment` }
+    return [fileBlock, { type: "text", text }]
+  }
+  return text
 }
 
 export function parseVoiceCommand(text: string): string | null {
@@ -60,7 +73,7 @@ async function main() {
   }
 
   // Wire up inbound message handler
-  setMessageHandler(async (text, image) => {
+  setMessageHandler(async (text, image, file) => {
     const command = parseVoiceCommand(text)
     if (command !== null) {
       handleCommand(command)
@@ -70,7 +83,7 @@ async function main() {
     await mcp.notification({
       method: "notifications/claude/channel",
       params: {
-        content: buildChannelContent(text, image),
+        content: buildChannelContent(text, image, file),
         meta: { chat_id: getSessionId() },
       },
     })

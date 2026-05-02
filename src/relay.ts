@@ -46,7 +46,7 @@ function buildUrl(): string {
   return t ? `${base}&pluginToken=${encodeURIComponent(t.pluginToken)}` : base
 }
 
-type MessageHandler = (text: string, image?: { base64: string; media_type: string }) => void
+type MessageHandler = (text: string, image?: { base64: string; media_type: string }, file?: { base64: string; name: string; media_type: string }) => void
 type PermissionVerdictHandler = (request_id: string, allow: boolean) => void
 type ChannelEventHandler = (content: string, meta?: Record<string, unknown>) => void
 type CommandHandler = (command: string) => void
@@ -113,7 +113,10 @@ function handleMessage(msg: RelayMessage) {
       const image = msg.image_base64 && msg.image_media_type
         ? { base64: msg.image_base64, media_type: msg.image_media_type }
         : undefined
-      onMessage(msg.text, image)
+      const file = msg.file_base64 && msg.file_name && msg.file_media_type
+        ? { base64: msg.file_base64, name: msg.file_name, media_type: msg.file_media_type }
+        : undefined
+      onMessage(msg.text, image, file)
       break
     }
 
