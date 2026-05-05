@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs"
 import { formatActivity } from "./activity.js"
 import type { PluginMessage, TaskSummary } from "./types.js"
 
-const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.hackerassist.com"
+const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.nuradev.app"
 
 function getSessionFile(): string {
   try {
