@@ -227,7 +227,7 @@ export function sendReplyWithDetail(message: string, full_content: string, image
 }
 
 export function sendPermissionRequest(params: PermissionRequestParams) {
-  ws?.send(JSON.stringify({ type: "permission_request", ...params }))
+  ws?.send(JSON.stringify({ type: "permission_request", session_id: sessionId, ...params }))
 }
 
 export function sendThinking() {
