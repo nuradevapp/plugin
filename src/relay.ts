@@ -36,7 +36,7 @@ function pairingBoxText(code: string, expiresIn: number): string {
   )
 }
 
-const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.hackerassist.com"
+const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.nuradev.app"
 const BACKOFF_STEPS = [2000, 4000, 8000, 16000, 30000]
 const cwd = process.cwd()
 
