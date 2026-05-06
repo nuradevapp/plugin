@@ -6,14 +6,14 @@ https://nuradev.app
 ## Install
 
 ```
-/plugin marketplace add hackerassist/marketplace
-/plugin install nuradev@hackerassist/marketplace
+/plugin marketplace add nuradevapp/marketplace
+/plugin install nuradev@nuradevapp/marketplace
 ```
 
 ## Usage
 
 ```
-claude --channels plugin:nuradev@hackerassist/marketplace
+claude --channels plugin:nuradev@nuradevapp/marketplace
 ```
 
 A pairing code appears in your terminal.
@@ -24,7 +24,7 @@ Open https://app.nuradev.app on your phone and enter the code.
 Until the plugin is on Anthropic's approved allowlist, customers must launch with:
 
 ```
-claude --dangerously-load-development-channels plugin:nuradev@hackerassist/marketplace
+claude --dangerously-load-development-channels plugin:nuradev@nuradevapp/marketplace
 ```
 
 Requires Claude Code v2.1.81 or later.
