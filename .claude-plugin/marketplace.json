@@ -8,7 +8,10 @@
   "plugins": [
     {
       "name": "nuradev",
-      "source": ".",
+      "source": {
+        "source": "github",
+        "repo": "nuradevapp/plugin"
+      },
       "description": "Voice control for Claude Code from your phone — nuradev.app",
       "version": "2026.05.06",
       "homepage": "https://nuradev.app",
