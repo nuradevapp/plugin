@@ -3,21 +3,24 @@
   "version": "2026.05.07",
   "description": "Control your Claude Code session by voice from your phone — nuradev.app",
   "author": "Nura Dev",
-  "type": "channel",
-  "runtime": "bun",
-  "main": "src/index.ts",
   "install": {
     "command": "bun install"
   },
+  "mcpServers": {
+    "nuradev": {
+      "command": "bun",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/src/index.ts"]
+    }
+  },
   "hooks": {
     "PreToolUse": [
-      { "matcher": "*", "command": "bun run ${PLUGIN_DIR}/src/hook.ts --phase=start" }
+      { "matcher": "*", "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=start" }
     ],
     "PostToolUse": [
-      { "matcher": "*", "command": "bun run ${PLUGIN_DIR}/src/hook.ts --phase=end" }
+      { "matcher": "*", "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=end" }
     ],
     "Stop": [
-      { "command": "bun run ${PLUGIN_DIR}/src/hook.ts --phase=stop" }
+      { "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=stop" }
     ]
   },
   "homepage": "https://nuradev.app",
