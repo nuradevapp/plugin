@@ -19,14 +19,14 @@ function pairingBoxText(code: string, expiresIn: number): string {
   return (
     "╔══════════════════════════════════════╗\n" +
     "║                                      ║\n" +
-    "║   HACKER ASSIST                      ║\n" +
-    "║   hackerassist.com                   ║\n" +
+    "║   NURA DEV                           ║\n" +
+    "║   nuradev.app                        ║\n" +
     "║                                      ║\n" +
     "║   Pairing code:                      ║\n" +
     "║                                      ║\n" +
     `║          ${formatted.padEnd(28)}║\n` +
     "║                                      ║\n" +
-    "║   1. Open app.hackerassist.com       ║\n" +
+    "║   1. Open app.nuradev.app            ║\n" +
     "║      on your phone                   ║\n" +
     "║   2. Tap  +  and enter this code     ║\n" +
     "║                                      ║\n" +
@@ -36,7 +36,7 @@ function pairingBoxText(code: string, expiresIn: number): string {
   )
 }
 
-const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.nuradev.app"
+const RELAY_URL = "wss://relay.nuradev.app"
 const BACKOFF_STEPS = [2000, 4000, 8000, 16000, 30000]
 const cwd = process.cwd()
 
@@ -67,12 +67,12 @@ function handleMessage(msg: RelayMessage) {
     case "registered": {
       const isFirstConnect = sessionId === null
       sessionId = msg.sessionId
-      Bun.write(`/tmp/hackerassist-session.${process.ppid}`, msg.sessionId).catch(() => {})
+      Bun.write(`/tmp/nuradev-session.${process.ppid}`, msg.sessionId).catch(() => {})
       if (paired) updateSessionId(cwd, msg.sessionId)
       if (!isFirstConnect) {
         // WebSocket reconnect within the same session — skip re-pairing
         showReconnected()
-        onChannelEvent("✓ Hacker Assist reconnected", { event: "app_reconnected" })
+        onChannelEvent("✓ Nura Dev reconnected", { event: "app_reconnected" })
       } else if (!paired) {
         // New directory — request a pairing code
         ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
@@ -80,8 +80,8 @@ function handleMessage(msg: RelayMessage) {
         // Known directory — connect directly, no re-pairing needed
         showPaired()
         onChannelEvent(
-          "✓ Hacker Assist connected — ready\n" +
-          "  Listening for voice commands from app.hackerassist.com",
+          "✓ Nura Dev connected — ready\n" +
+          "  Listening for voice commands from app.nuradev.app",
           { event: "paired" }
         )
       }
@@ -103,8 +103,8 @@ function handleMessage(msg: RelayMessage) {
       clearPairingBox()
       showPaired()
       onChannelEvent(
-        "✓ Hacker Assist paired — ready\n" +
-        "  Listening for voice commands from app.hackerassist.com",
+        "✓ Nura Dev paired — ready\n" +
+        "  Listening for voice commands from app.nuradev.app",
         { event: "paired" }
       )
       break
@@ -131,15 +131,15 @@ function handleMessage(msg: RelayMessage) {
     case "app_disconnected":
       showDisconnected()
       onChannelEvent(
-        "○ Hacker Assist disconnected\n" +
-        "  Waiting for reconnect from app.hackerassist.com...",
+        "○ Nura Dev disconnected\n" +
+        "  Waiting for reconnect from app.nuradev.app...",
         { event: "app_disconnected" }
       )
       break
 
     case "app_reconnected":
       showReconnected()
-      onChannelEvent("✓ Hacker Assist reconnected", { event: "app_reconnected" })
+      onChannelEvent("✓ Nura Dev reconnected", { event: "app_reconnected" })
       break
 
     case "command":
@@ -154,9 +154,9 @@ function handleClose(ev: Event) {
     deleteToken(cwd)
     paired = false
     sessionId = null
-    process.stderr.write("Hacker Assist: token invalid — re-pairing required.\n")
+    process.stderr.write("Nura Dev: token invalid — re-pairing required.\n")
     onChannelEvent(
-      "⚠ Hacker Assist: re-pairing required\n" +
+      "⚠ Nura Dev: re-pairing required\n" +
       "  Your session token is no longer valid.\n" +
       "  A new pairing code will appear shortly.",
       { event: "repairing_required" }

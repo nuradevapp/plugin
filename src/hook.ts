@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs"
 import { formatActivity } from "./activity.js"
 import type { PluginMessage, TaskSummary } from "./types.js"
 
-const RELAY_URL = process.env.HACKER_ASSIST_RELAY_URL ?? "wss://relay.nuradev.app"
+const RELAY_URL = "wss://relay.nuradev.app"
 
 function getSessionFile(): string {
   try {
@@ -11,9 +11,9 @@ function getSessionFile(): string {
     const parentPpid = parseInt(
       readFileSync(`/proc/${process.ppid}/status`, "utf8").match(/PPid:\s+(\d+)/)?.[1] ?? "0"
     )
-    if (parentPpid > 0) return `/tmp/hackerassist-session.${parentPpid}`
+    if (parentPpid > 0) return `/tmp/nuradev-session.${parentPpid}`
   } catch { /* fall through */ }
-  return "/tmp/hackerassist-session"
+  return "/tmp/nuradev-session"
 }
 
 const SESSION_FILE = getSessionFile()

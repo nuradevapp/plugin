@@ -1,8 +1,8 @@
 {
-  "name": "hackerassist",
+  "name": "nuradev",
   "version": "1.0.0",
-  "description": "Control your Claude Code session by voice from your phone — hackerassist.com",
-  "author": "Hacker Assist",
+  "description": "Control your Claude Code session by voice from your phone — nuradev.app",
+  "author": "Nura Dev",
   "type": "channel",
   "runtime": "bun",
   "main": "src/index.ts",
@@ -20,7 +20,7 @@
       { "command": "bun run ${PLUGIN_DIR}/src/hook.ts --phase=stop" }
     ]
   },
-  "homepage": "https://hackerassist.com",
-  "repository": "https://github.com/yourusername/hackerassist-plugin",
-  "keywords": ["voice", "mobile", "channel", "hackerassist"]
+  "homepage": "https://nuradev.app",
+  "repository": "https://github.com/hackerassist/plugin",
+  "keywords": ["voice", "mobile", "channel", "nuradev"]
 }

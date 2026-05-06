@@ -5,7 +5,7 @@ import { z } from "zod"
 import { sendReply, sendReplyWithDetail, sendPermissionRequest } from "./relay.js"
 
 export const mcp = new Server(
-  { name: "hackerassist", version: "1.0.0" },
+  { name: "nuradev", version: "1.0.0" },
   {
     capabilities: {
       experimental: {
@@ -15,7 +15,7 @@ export const mcp = new Server(
       tools: {},
     },
     instructions:
-      'Messages from Hacker Assist arrive as <channel source="hackerassist" ...> tags. Two kinds:\n' +
+      'Messages from Nura Dev arrive as <channel source="nuradev" ...> tags. Two kinds:\n' +
       '1. Voice messages — the tag has a chat_id attribute. IMMEDIATELY call the reply tool with a brief acknowledgment (e.g. "On it!" or "Got it, working on it.") BEFORE doing any other work. Then do the work, and reply again when done.\n' +
       '   - Keep the `text` param concise (≤200 chars) — it is read aloud via text-to-speech.\n' +
       '   - If your reply is longer than 2 sentences, summarise it in `text` and put the full response in `full_content`.\n' +
@@ -26,7 +26,7 @@ export const mcp = new Server(
 mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [{
     name: "reply",
-    description: "Send a reply to the Hacker Assist mobile app (hackerassist.com)",
+    description: "Send a reply to the Nura Dev mobile app (nuradev.app)",
     inputSchema: {
       type: "object",
       properties: {

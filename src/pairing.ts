@@ -25,14 +25,14 @@ export function showPairingCode(code: string, expiresIn: number, onExpired: () =
     "\n" +
     "╔══════════════════════════════════════╗\n" +
     "║                                      ║\n" +
-    "║   HACKER ASSIST                      ║\n" +
-    "║   hackerassist.com                   ║\n" +
+    "║   NURA DEV                           ║\n" +
+    "║   nuradev.app                        ║\n" +
     "║                                      ║\n" +
     "║   Pairing code:                      ║\n" +
     "║                                      ║\n" +
     `║          ${formatted.padEnd(28)}║\n` +
     "║                                      ║\n" +
-    "║   1. Open app.hackerassist.com       ║\n" +
+    "║   1. Open app.nuradev.app            ║\n" +
     "║      on your phone                   ║\n" +
     "║   2. Tap  +  and enter this code     ║\n" +
     "║                                      ║\n" +
@@ -77,18 +77,18 @@ export function clearPairingBox() {
 export function showPaired() {
   clearCountdown()
   process.stderr.write(
-    "✓ Hacker Assist paired — ready\n" +
-    "  Listening for voice commands from app.hackerassist.com\n"
+    "✓ Nura Dev paired — ready\n" +
+    "  Listening for voice commands from app.nuradev.app\n"
   )
 }
 
 export function showDisconnected() {
   process.stderr.write(
-    "○ Hacker Assist disconnected\n" +
-    "  Waiting for reconnect from app.hackerassist.com...\n"
+    "○ Nura Dev disconnected\n" +
+    "  Waiting for reconnect from app.nuradev.app...\n"
   )
 }
 
 export function showReconnected() {
-  process.stderr.write("✓ Hacker Assist reconnected\n")
+  process.stderr.write("✓ Nura Dev reconnected\n")
 }

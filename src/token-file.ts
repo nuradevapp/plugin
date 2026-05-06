@@ -1,8 +1,8 @@
 import { homedir } from "os"
 import { join } from "path"
-import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, unlinkSync } from "fs"
+import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "fs"
 
-const DIR = join(homedir(), ".hackerassist")
+const DIR = join(homedir(), ".nuradev")
 const FILE = join(DIR, "plugin-token.json")
 
 interface TokenEntry {
@@ -23,33 +23,10 @@ function isValidEntry(e: unknown): e is TokenEntry {
 }
 
 function readAll(): TokenEntry[] {
-  if (!existsSync(FILE)) {
-    // One-time migration: fall back to legacy token.json
-    const legacy = join(DIR, "token.json")
-    if (existsSync(legacy)) {
-      try {
-        const data = JSON.parse(readFileSync(legacy, "utf-8"))
-        if (typeof data.pluginToken === "string" && typeof data.pluginTokenId === "string") {
-          const entries: TokenEntry[] = [{ directory: process.cwd(), pluginToken: data.pluginToken, pluginTokenId: data.pluginTokenId, sessionId: "" }]
-          writeAll(entries)
-          unlinkSync(legacy)
-          process.stderr.write("hackerassist: migrated token.json to directory-keyed plugin-token.json\n")
-          return entries
-        }
-      } catch { /* ignore */ }
-    }
-    return []
-  }
+  if (!existsSync(FILE)) return []
   try {
     const data = JSON.parse(readFileSync(FILE, "utf-8"))
     if (Array.isArray(data)) return data.filter(isValidEntry)
-    // One-time migration: old flat format { pluginToken, pluginTokenId }
-    if (typeof data.pluginToken === "string" && typeof data.pluginTokenId === "string") {
-      const entries: TokenEntry[] = [{ directory: process.cwd(), pluginToken: data.pluginToken, pluginTokenId: data.pluginTokenId, sessionId: "" }]
-      writeAll(entries)
-      process.stderr.write("hackerassist: migrated flat token to directory-keyed format\n")
-      return entries
-    }
     return []
   } catch {
     return []

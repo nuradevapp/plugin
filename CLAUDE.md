@@ -12,11 +12,11 @@ bun test tests/activity.test.ts  # run a single test file
 bun test tests/hook.test.ts
 ```
 
-Set `HACKER_ASSIST_RELAY_URL=wss://your-relay.example.com` to point at a self-hosted relay instead of the default `wss://relay.hackerassist.com`.
+The relay URL is hardcoded to `wss://relay.nuradev.app`. Self-hosted relays are not supported — Nura Dev is a paid managed service.
 
 ## Architecture
 
-This is a **Claude Code channel plugin** that bridges voice commands from a phone (via hackerassist.com) into Claude Code sessions. There are three parties in the system:
+This is a **Claude Code channel plugin** that bridges voice commands from a phone (via nuradev.app) into Claude Code sessions. There are three parties in the system:
 
 ```
 Phone App  ←→  WebSocket Relay  ←→  This Plugin  ←→  Claude Code (MCP stdio)
@@ -32,7 +32,7 @@ Phone App  ←→  WebSocket Relay  ←→  This Plugin  ←→  Claude Code (MC
 | `src/hook.ts` | Standalone CLI invoked by Claude Code hooks (PreToolUse/PostToolUse/Stop) |
 | `src/activity.ts` | Pure function: formats tool name + input → human-readable summary |
 | `src/pairing.ts` | Terminal rendering of the pairing box, countdown timer, status lines |
-| `src/token-file.ts` | Reads/writes `~/.hackerassist/plugin-token.json` (mode 0o600) |
+| `src/token-file.ts` | Reads/writes `~/.nuradev/plugin-token.json` (mode 0o600) |
 | `src/types.ts` | All wire message types (`PluginMessage`, `RelayMessage`, `TaskSummary`) |
 | `tests/activity.test.ts` | Unit tests for `formatActivity` |
 | `tests/hook.test.ts` | Unit tests for `buildEvents` |
@@ -47,7 +47,7 @@ Phone App  ←→  WebSocket Relay  ←→  This Plugin  ←→  Claude Code (MC
 - Outbound: `reply`, `reply_with_detail`, `permission_request`, `thinking`, `status`, `task_update`, `activity_event`, `activity_clear`
 - Exponential backoff reconnect: 2s → 4s → 8s → 16s → 30s (capped)
 - Close code `4401` = unpaired; deletes token file and resets to unpaired state
-- Plugin token stored in `~/.hackerassist/plugin-token.json` and sent as `?pluginToken=…` query param on reconnect
+- Plugin token stored in `~/.nuradev/plugin-token.json` and sent as `?pluginToken=…` query param on reconnect
 
 **`mcp.ts`** — MCP `Server` connected to Claude Code via `StdioServerTransport`. Exposes:
 - Experimental capabilities `claude/channel` and `claude/channel/permission`
@@ -73,7 +73,7 @@ Claude Code invokes `src/hook.ts` via three hooks declared in `manifest.json`:
 
 Additionally, for `TaskCreate` and `TaskUpdate` tool calls, `hook.ts` emits a `task_update` message alongside the activity event so the mobile app can maintain a persistent task board.
 
-`hook.ts` reads stdin as JSON (`HookPayload`: `tool_use_id`, `tool_name`, `tool_input`, `timestamp`) and the session ID from `/tmp/hackerassist-session`. Opens a fresh WebSocket (`?client=status`) per invocation, sends all messages, then closes it. Fire-and-forget: exits 0 even on error.
+`hook.ts` reads stdin as JSON (`HookPayload`: `tool_use_id`, `tool_name`, `tool_input`, `timestamp`) and the session ID from `/tmp/nuradev-session`. Opens a fresh WebSocket (`?client=status`) per invocation, sends all messages, then closes it. Fire-and-forget: exits 0 even on error.
 
 ### Activity formatting (`activity.ts`)
 
@@ -97,7 +97,7 @@ Additionally, for `TaskCreate` and `TaskUpdate` tool calls, `hook.ts` emits a `t
 
 ### Session ID & status hook
 
-When the relay assigns a `sessionId`, it's written to `/tmp/hackerassist-session`. The hook reads this file to know which session to post status updates for. If the file is missing, the hook exits immediately (no relay is running).
+When the relay assigns a `sessionId`, it's written to `/tmp/nuradev-session`. The hook reads this file to know which session to post status updates for. If the file is missing, the hook exits immediately (no relay is running).
 
 ### Message types (`types.ts`)
 
@@ -133,7 +133,7 @@ The same box is also built as a string in `relay.ts` (`pairingBoxText`) and forw
 
 ### Token persistence (`token-file.ts`)
 
-Stores `{ pluginToken, pluginTokenId }` as JSON in `~/.hackerassist/plugin-token.json` with mode `0o600`. On reconnect, `pluginToken` is appended to the WebSocket URL so the relay can re-authenticate the plugin without re-pairing. On close code `4401` (unpaired), the token file is deleted.
+Stores `{ pluginToken, pluginTokenId }` as JSON in `~/.nuradev/plugin-token.json` with mode `0o600`. On reconnect, `pluginToken` is appended to the WebSocket URL so the relay can re-authenticate the plugin without re-pairing. On close code `4401` (unpaired), the token file is deleted.
 
 ### Dependencies
 
@@ -141,14 +141,8 @@ Stores `{ pluginToken, pluginTokenId }` as JSON in `~/.hackerassist/plugin-token
 - `zod` — schema validation for permission request notifications
 - `bun` runtime (not Node.js) — used for file I/O (`Bun.file`, `Bun.write`, `Bun.stdin`), WebSocket, and test runner
 
-### Environment variables
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `HACKER_ASSIST_RELAY_URL` | `wss://relay.hackerassist.com` | Override relay WebSocket URL |
-
 ### Temporary files
 
 | Path | Contents | Purpose |
 |------|----------|---------|
-| `/tmp/hackerassist-session` | session ID string | Shared between plugin and hook CLI |
+| `/tmp/nuradev-session` | session ID string | Shared between plugin and hook CLI |
