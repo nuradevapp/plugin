@@ -26,7 +26,7 @@ function pairingBoxText(code: string, expiresIn: number): string {
     "║                                      ║\n" +
     `║          ${formatted.padEnd(28)}║\n` +
     "║                                      ║\n" +
-    "║   1. Open app.nuradev.app            ║\n" +
+    "║   1. Open nuradev.app                ║\n" +
     "║      on your phone                   ║\n" +
     "║   2. Tap  +  and enter this code     ║\n" +
     "║                                      ║\n" +
@@ -81,7 +81,7 @@ function handleMessage(msg: RelayMessage) {
         showPaired()
         onChannelEvent(
           "✓ Nura Dev connected — ready\n" +
-          "  Listening for voice commands from app.nuradev.app",
+          "  Listening for voice commands from nuradev.app",
           { event: "paired" }
         )
       }
@@ -104,7 +104,7 @@ function handleMessage(msg: RelayMessage) {
       showPaired()
       onChannelEvent(
         "✓ Nura Dev paired — ready\n" +
-        "  Listening for voice commands from app.nuradev.app",
+        "  Listening for voice commands from nuradev.app",
         { event: "paired" }
       )
       break
@@ -132,7 +132,7 @@ function handleMessage(msg: RelayMessage) {
       showDisconnected()
       onChannelEvent(
         "○ Nura Dev disconnected\n" +
-        "  Waiting for reconnect from app.nuradev.app...",
+        "  Waiting for reconnect from nuradev.app...",
         { event: "app_disconnected" }
       )
       break

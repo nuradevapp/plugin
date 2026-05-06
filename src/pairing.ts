@@ -32,7 +32,7 @@ export function showPairingCode(code: string, expiresIn: number, onExpired: () =
     "║                                      ║\n" +
     `║          ${formatted.padEnd(28)}║\n` +
     "║                                      ║\n" +
-    "║   1. Open app.nuradev.app            ║\n" +
+    "║   1. Open nuradev.app                ║\n" +
     "║      on your phone                   ║\n" +
     "║   2. Tap  +  and enter this code     ║\n" +
     "║                                      ║\n" +
@@ -78,14 +78,14 @@ export function showPaired() {
   clearCountdown()
   process.stderr.write(
     "✓ Nura Dev paired — ready\n" +
-    "  Listening for voice commands from app.nuradev.app\n"
+    "  Listening for voice commands from nuradev.app\n"
   )
 }
 
 export function showDisconnected() {
   process.stderr.write(
     "○ Nura Dev disconnected\n" +
-    "  Waiting for reconnect from app.nuradev.app...\n"
+    "  Waiting for reconnect from nuradev.app...\n"
   )
 }
 

@@ -17,7 +17,7 @@ This clones the marketplace, registers it, and installs the plugin in one step.
 claude --dangerously-load-development-channels plugin:nuradev@nuradev
 ```
 
-A pairing code appears in your terminal. Open https://app.nuradev.app on your phone and enter the code.
+A pairing code appears in your terminal. Open https://nuradev.app on your phone and enter the code.
 
 The `--dangerously-load-development-channels` flag is required during the channels research preview until Nura Dev is added to Anthropic's allowlist. Requires Claude Code v2.1.81 or later.
 
