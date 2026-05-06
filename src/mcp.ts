@@ -2,10 +2,10 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js"
 import { z } from "zod"
-import { sendReply, sendReplyWithDetail, sendPermissionRequest } from "./relay.js"
+import { sendReply, sendReplyWithDetail, sendPermissionRequest, requestPairingCode } from "./relay.js"
 
 export const mcp = new Server(
-  { name: "nuradev", version: "2026.05.06" },
+  { name: "nuradev", version: "2026.05.07" },
   {
     capabilities: {
       experimental: {
@@ -24,32 +24,43 @@ export const mcp = new Server(
 )
 
 mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{
-    name: "reply",
-    description: "Send a reply to the Nura Dev mobile app (nuradev.app)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        text: {
-          type: "string",
-          description: "Reply for text-to-speech — keep it concise, max ~200 chars",
+  tools: [
+    {
+      name: "reply",
+      description: "Send a reply to the Nura Dev mobile app (nuradev.app)",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "Reply for text-to-speech — keep it concise, max ~200 chars",
+          },
+          full_content: {
+            type: "string",
+            description: "Full response shown when user taps the card. Use when reply is longer than 2 sentences.",
+          },
+          image_base64: {
+            type: "string",
+            description: "Base64-encoded image to display in the app alongside the text reply.",
+          },
+          image_media_type: {
+            type: "string",
+            description: "MIME type of the image (e.g. image/jpeg, image/png). Defaults to image/jpeg.",
+          },
         },
-        full_content: {
-          type: "string",
-          description: "Full response shown when user taps the card. Use when reply is longer than 2 sentences.",
-        },
-        image_base64: {
-          type: "string",
-          description: "Base64-encoded image to display in the app alongside the text reply.",
-        },
-        image_media_type: {
-          type: "string",
-          description: "MIME type of the image (e.g. image/jpeg, image/png). Defaults to image/jpeg.",
-        },
+        required: ["text"],
       },
-      required: ["text"],
     },
-  }],
+    {
+      name: "request_pairing_code",
+      description: "Ask the Nura Dev relay for a fresh pairing code so the user can connect their phone. The code arrives moments later as a system channel event with a box-drawing display — show it verbatim.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  ],
 }))
 
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
@@ -69,6 +80,10 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       sendReply(text, image)
     }
     return { content: [{ type: "text", text: "sent" }] }
+  }
+  if (req.params.name === "request_pairing_code") {
+    requestPairingCode()
+    return { content: [{ type: "text", text: "Pairing code requested. It will appear as a system channel event in a moment." }] }
   }
   throw new Error(`unknown tool: ${req.params.name}`)
 })

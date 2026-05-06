@@ -240,6 +240,10 @@ export function sendActivityClear() {
   ws?.send(JSON.stringify({ type: "activity_clear", session_id: sessionId }))
 }
 
+export function requestPairingCode() {
+  ws?.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
+}
+
 export function setMessageHandler(handler: MessageHandler) {
   onMessage = handler
 }
