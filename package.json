@@ -1,6 +1,6 @@
 {
   "name": "nuradev-plugin",
-  "version": "1.0.0",
+  "version": "2026.05.06",
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch src/index.ts",
