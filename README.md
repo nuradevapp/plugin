@@ -6,10 +6,13 @@ https://nuradev.app
 ## Install
 
 ```
-/plugin install nuradev@nuradevapp/plugin
+/plugin marketplace add https://github.com/nuradevapp/plugin.git
+/plugin install nuradev@nuradev
 ```
 
-This clones the marketplace, registers it, and installs the plugin in one step.
+The first command registers the marketplace over HTTPS (avoids requiring SSH keys on the host). The second installs the plugin.
+
+> ⚠️ Do not use the GitHub shorthand `/plugin marketplace add nuradevapp/plugin` — Claude Code resolves that to `git@github.com:nuradevapp/plugin.git` (SSH) and the clone will fail on machines without SSH keys configured for GitHub.
 
 ## Launch
 
