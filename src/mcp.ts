@@ -5,7 +5,7 @@ import { z } from "zod"
 import { sendReply, sendReplyWithDetail, sendPermissionRequest, requestPairingCode } from "./relay.js"
 
 export const mcp = new Server(
-  { name: "nuradev", version: "2026.05.07" },
+  { name: "nuradev", version: "2026.05.08" },
   {
     capabilities: {
       experimental: {
@@ -15,11 +15,22 @@ export const mcp = new Server(
       tools: {},
     },
     instructions:
-      'Messages from Nura Dev arrive as <channel source="nuradev" ...> tags. Two kinds:\n' +
-      '1. Voice messages — the tag has a chat_id attribute. IMMEDIATELY call the reply tool with a brief acknowledgment (e.g. "On it!" or "Got it, working on it.") BEFORE doing any other work. Then do the work, and reply again when done.\n' +
-      '   - Keep the `text` param concise (≤200 chars) — it is read aloud via text-to-speech.\n' +
-      '   - If your reply is longer than 2 sentences, summarise it in `text` and put the full response in `full_content`.\n' +
-      '2. System events — no chat_id attribute (pairing codes, connection status, tool status). Display the content verbatim (preserve line breaks and box drawing) and do NOT call the reply tool.',
+      'Messages from Nura Dev arrive as <channel source="nuradev" ...> tags.\n' +
+      '\n' +
+      'Pair-state tracking: Watch system events for these content markers:\n' +
+      '- "Nura Dev paired", "Nura Dev connected", or "Nura Dev reconnected" → PAIRED state.\n' +
+      '- "Nura Dev disconnected" → UNPAIRED state.\n' +
+      'Treat the session as UNPAIRED until you see a paired/connected/reconnected marker.\n' +
+      '\n' +
+      'Rules by message kind:\n' +
+      '1. System events (channel tag without a chat_id attribute — pairing codes, connection status, tool status): display the content verbatim (preserve line breaks and box drawing). Do NOT call the reply tool. Update your pair-state tracking based on the content as described above.\n' +
+      '2. Voice messages (channel tag has a chat_id attribute): the user spoke this. IMMEDIATELY call the reply tool with a brief ack ("On it!", "Got it") BEFORE doing any other work, so the phone gets fast audio feedback. Then do the work.\n' +
+      '\n' +
+      'When PAIRED, mirror everything: you MUST call the reply tool for EVERY user-facing text block you produce — preambles like "Let me check...", interim updates between tool calls, acknowledgments, and final responses. Each text block becomes one reply call, in the order it would appear in the terminal. This applies to both voice-initiated AND terminal-initiated work. When UNPAIRED, do not call the reply tool at all.\n' +
+      '\n' +
+      'reply tool params:\n' +
+      '- `text`: TTS-friendly summary, ≤200 chars (it is read aloud).\n' +
+      '- `full_content`: the complete response, when longer than ~2 sentences.',
   }
 )
 
