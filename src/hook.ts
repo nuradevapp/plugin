@@ -18,7 +18,14 @@ function getSessionFile(): string {
 
 const SESSION_FILE = getSessionFile()
 
-export type HookPhase = "start" | "end" | "stop"
+export type HookPhase = "start" | "end" | "stop" | "session-start"
+
+const SESSION_START_INSTRUCTION = `The nuradev voice plugin mirrors all of your text output to the user's phone for TTS playback. Because of this, your text output is the user-facing voice channel — treat it that way:
+
+- Skip conversational filler and acknowledgments. Do not write "On it!", "Sure!", "Let me…", "I'll start by…", "Got it!", "Working on that now", or similar preamble before tool calls. Just call the tool.
+- Do not narrate what you're about to do, what you just did, or what you're thinking. The activity hook already shows the user every tool call in real time.
+- Only produce text output when you have something substantive for the user: the final answer, a question that needs their input, a blocker, or a meaningful status they couldn't infer from the activity feed.
+- Keep substantive output tight — every sentence is being spoken aloud.`
 
 export interface HookPayload {
   tool_use_id?: string
@@ -105,7 +112,19 @@ async function main() {
   const phaseArg = process.argv.find((a) => a.startsWith("--phase="))?.split("=")[1]
     ?? (process.argv.includes("--stop") ? "stop" : "start")
   const phase = (phaseArg as HookPhase)
-  if (phase !== "start" && phase !== "end" && phase !== "stop") process.exit(0)
+  if (phase !== "start" && phase !== "end" && phase !== "stop" && phase !== "session-start") {
+    process.exit(0)
+  }
+
+  if (phase === "session-start") {
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext: SESSION_START_INSTRUCTION,
+      },
+    }))
+    process.exit(0)
+  }
 
   if (!existsSync(SESSION_FILE)) process.exit(0)
   const sessionId = (await Bun.file(SESSION_FILE).text()).trim()

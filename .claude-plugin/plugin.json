@@ -13,6 +13,16 @@
     }
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=session-start"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "*",
