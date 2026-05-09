@@ -5,7 +5,7 @@ import { z } from "zod"
 import { sendReply, sendReplyWithDetail, sendPermissionRequest, requestPairingCode } from "./relay.js"
 
 export const mcp = new Server(
-  { name: "nuradev", version: "2026.05.09.2" },
+  { name: "nuradev", version: "2026.05.09.3" },
   {
     capabilities: {
       experimental: {
@@ -25,6 +25,7 @@ export const mcp = new Server(
       'Rules by message kind:\n' +
       '1. System events (channel tag without a chat_id attribute — pairing codes, connection status, tool status): display the content verbatim (preserve line breaks and box drawing). Do NOT call the reply tool. Update your pair-state tracking based on the content as described above.\n' +
       '2. Voice messages (channel tag has a chat_id attribute): the user spoke this. IMMEDIATELY call the reply tool with a brief ack ("On it!", "Got it") BEFORE doing any other work, so the phone gets fast audio feedback. Then do the work.\n' +
+      '   2a. Attachments: if the channel content begins with "[image attached: <path>]" or "[file attached: <name> → <path>]", IMMEDIATELY call the Read tool on that path so you can see the image/file content, then proceed with the user instruction that follows on the next line.\n' +
       '\n' +
       'When PAIRED, mirror everything: you MUST call the reply tool for EVERY user-facing text block you produce — preambles like "Let me check...", interim updates between tool calls, acknowledgments, and final responses. Each text block becomes one reply call, in the order it would appear in the terminal. This applies to both voice-initiated AND terminal-initiated work. When UNPAIRED, do not call the reply tool at all.\n' +
       '\n' +

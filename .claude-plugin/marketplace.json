@@ -13,7 +13,7 @@
         "url": "https://github.com/nuradevapp/plugin.git"
       },
       "description": "Voice control for Claude Code from your phone — nuradev.app",
-      "version": "2026.05.09.2",
+      "version": "2026.05.09.3",
       "homepage": "https://nuradev.app",
       "repository": "https://github.com/nuradevapp/plugin",
       "keywords": ["voice", "mobile", "channel", "nuradev"],

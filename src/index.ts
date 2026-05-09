@@ -11,33 +11,7 @@ import {
 } from "./relay.js"
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
 import { log } from "./log.js"
-
-type ImageBlock = { type: "image"; source: { type: "base64"; media_type: string; data: string } }
-type DocumentBlock = { type: "document"; source: { type: "base64"; media_type: string; data: string } }
-type TextBlock = { type: "text"; text: string }
-
-export function buildChannelContent(
-  text: string,
-  image?: { base64: string; media_type: string },
-  file?: { base64: string; name: string; media_type: string }
-): string | Array<ImageBlock | DocumentBlock | TextBlock> {
-  if (image) {
-    return [
-      { type: "image", source: { type: "base64", media_type: image.media_type, data: image.base64 } },
-      { type: "text", text },
-    ]
-  }
-  if (file) {
-    const fileBlock: DocumentBlock | TextBlock =
-      file.media_type === "application/pdf"
-        ? { type: "document", source: { type: "base64", media_type: file.media_type, data: file.base64 } }
-        : file.media_type.startsWith("text/") || file.media_type === "application/json"
-          ? { type: "text", text: `File: ${file.name}\n\n${Buffer.from(file.base64, "base64").toString("utf-8")}` }
-          : { type: "text", text: `File: ${file.name} (${file.media_type}) — binary attachment` }
-    return [fileBlock, { type: "text", text }]
-  }
-  return text
-}
+import { saveAttachment, formatAttachmentRef } from "./attachments.js"
 
 export function parseVoiceCommand(text: string): string | null {
   const lower = text.trim().toLowerCase()
@@ -81,10 +55,19 @@ async function main() {
       return
     }
     sendThinking()
-    const content = buildChannelContent(text, image, file)
+    let content: string = text
+    if (image) {
+      const path = saveAttachment(image.base64, image.media_type)
+      content = formatAttachmentRef(text, "image", path)
+      log("attachment:saved", { kind: "image", path, media_type: image.media_type, b64_len: image.base64.length })
+    } else if (file) {
+      const path = saveAttachment(file.base64, file.media_type, file.name)
+      content = formatAttachmentRef(text, "file", path, file.name)
+      log("attachment:saved", { kind: "file", path, name: file.name, media_type: file.media_type, b64_len: file.base64.length })
+    }
     log("mcp:notify:pre", {
-      content_type: Array.isArray(content) ? "array" : typeof content,
-      blocks: Array.isArray(content) ? content.map(b => b.type).join(",") : "-",
+      content_type: "string",
+      text_len: content.length,
       has_image: !!image,
       has_file: !!file,
       chat_id: getSessionId(),
