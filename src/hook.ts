@@ -59,6 +59,10 @@ export function buildEvents(
   const { tool_use_id, tool_name, tool_input, timestamp } = payload
   if (!tool_use_id || !tool_name) return []
 
+  // AskUserQuestion is handled by the phone-routing path (handleAskUserQuestion in main)
+  // or by the terminal menu. Either way, no activity feed entry.
+  if (tool_name === "AskUserQuestion") return []
+
   const { tool, summary } = formatActivity(tool_name, tool_input ?? {})
   const ts = timestamp ?? Date.now()
 

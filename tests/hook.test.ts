@@ -90,4 +90,26 @@ describe("buildEvents", () => {
     const out = buildEvents("sess1", "start", { tool_name: "Read", tool_input: {}, timestamp: 1 } as any)
     expect(out).toEqual([])
   })
+
+  it("returns empty for AskUserQuestion on start phase", () => {
+    expect(
+      buildEvents("s1", "start", {
+        tool_use_id: "tu_q",
+        tool_name: "AskUserQuestion",
+        tool_input: { questions: [] },
+        timestamp: 1,
+      })
+    ).toEqual([])
+  })
+
+  it("returns empty for AskUserQuestion on end phase", () => {
+    expect(
+      buildEvents("s1", "end", {
+        tool_use_id: "tu_q",
+        tool_name: "AskUserQuestion",
+        tool_input: { questions: [] },
+        timestamp: 1,
+      })
+    ).toEqual([])
+  })
 })
