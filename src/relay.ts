@@ -2,6 +2,7 @@ import { hostname } from "os"
 import type { RelayMessage, PermissionRequestParams } from "./types.js"
 import { showPairingCode, showPaired, showDisconnected, showReconnected, clearPairingBox } from "./pairing.js"
 import { readToken, writeToken, updateSessionId, deleteToken } from "./token-file.js"
+import { log, len } from "./log.js"
 
 function formatCode(code: string): string {
   return code.length === 6 ? `${code.slice(0, 3)} - ${code.slice(3)}` : code
@@ -110,12 +111,27 @@ function handleMessage(msg: RelayMessage) {
       break
 
     case "message": {
+      log("relay→message:in", {
+        sid: sessionId,
+        keys: Object.keys(msg).join(","),
+        text_len: len(msg.text),
+        image_media_type: msg.image_media_type,
+        image_b64_len: len(msg.image_base64),
+        file_name: msg.file_name,
+        file_media_type: msg.file_media_type,
+        file_b64_len: len(msg.file_base64),
+      })
       const image = msg.image_base64 && msg.image_media_type
         ? { base64: msg.image_base64, media_type: msg.image_media_type }
         : undefined
       const file = msg.file_base64 && msg.file_name && msg.file_media_type
         ? { base64: msg.file_base64, name: msg.file_name, media_type: msg.file_media_type }
         : undefined
+      log("relay→message:dispatch", {
+        sid: sessionId,
+        has_image: !!image,
+        has_file: !!file,
+      })
       onMessage(msg.text, image, file)
       break
     }

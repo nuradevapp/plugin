@@ -10,6 +10,7 @@ import {
   destroyRelay,
 } from "./relay.js"
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
+import { log } from "./log.js"
 
 type ImageBlock = { type: "image"; source: { type: "base64"; media_type: string; data: string } }
 type DocumentBlock = { type: "document"; source: { type: "base64"; media_type: string; data: string } }
@@ -80,13 +81,26 @@ async function main() {
       return
     }
     sendThinking()
-    await mcp.notification({
-      method: "notifications/claude/channel",
-      params: {
-        content: buildChannelContent(text, image, file),
-        meta: { chat_id: getSessionId() },
-      },
+    const content = buildChannelContent(text, image, file)
+    log("mcp:notify:pre", {
+      content_type: Array.isArray(content) ? "array" : typeof content,
+      blocks: Array.isArray(content) ? content.map(b => b.type).join(",") : "-",
+      has_image: !!image,
+      has_file: !!file,
+      chat_id: getSessionId(),
     })
+    try {
+      await mcp.notification({
+        method: "notifications/claude/channel",
+        params: {
+          content,
+          meta: { chat_id: getSessionId() },
+        },
+      })
+      log("mcp:notify:ok", { has_image: !!image, has_file: !!file })
+    } catch (err) {
+      log("mcp:notify:err", { error: (err as Error).message })
+    }
   })
 
   // Wire up relay command handler (bare command name from relay → /command)
