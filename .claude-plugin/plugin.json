@@ -29,7 +29,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=start"
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=start",
+            "timeout": 86400
           }
         ]
       }
