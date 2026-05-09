@@ -119,7 +119,6 @@ async function sendMessages(messages: PluginMessage[]): Promise<void> {
   })
 }
 
-const QUESTION_WS_URL = "wss://relay.nuradev.app"
 const OPEN_TIMEOUT_MS = 3000
 
 interface Verdict {
@@ -157,7 +156,7 @@ async function connectAndAwait(
   questions: AskUserQuestion[],
   allowReconnect: boolean
 ): Promise<Verdict | null> {
-  const url = `${QUESTION_WS_URL}?client=question&pluginToken=${encodeURIComponent(pluginToken)}`
+  const url = `${RELAY_URL}?client=question&pluginToken=${encodeURIComponent(pluginToken)}`
 
   return new Promise<Verdict | null>((resolve) => {
     let ws: WebSocket | null = null
@@ -205,7 +204,10 @@ async function connectAndAwait(
       // Connection dropped before verdict arrived — try one reconnect with the same request_id.
       // The relay holds the verdict for ~30s for this case (see relay-side spec).
       if (allowReconnect) {
-        connectAndAwait(pluginToken, sessionId, request_id, questions, false).then(finish)
+        connectAndAwait(pluginToken, sessionId, request_id, questions, false).then((v) => {
+          if (resolved) return  // outer promise already resolved (e.g. message + close raced)
+          finish(v)
+        })
       } else {
         finish(null)
       }
