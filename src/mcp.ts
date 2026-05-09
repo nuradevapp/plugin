@@ -5,7 +5,7 @@ import { z } from "zod"
 import { sendReply, sendReplyWithDetail, sendPermissionRequest, requestPairingCode } from "./relay.js"
 
 export const mcp = new Server(
-  { name: "nuradev", version: "2026.05.08" },
+  { name: "nuradev", version: "2026.05.09.1" },
   {
     capabilities: {
       experimental: {
