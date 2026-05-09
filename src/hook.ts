@@ -1,6 +1,13 @@
 import { existsSync, readFileSync } from "fs"
+import { randomUUID } from "crypto"
 import { formatActivity } from "./activity.js"
-import type { PluginMessage, TaskSummary } from "./types.js"
+import { readToken } from "./token-file.js"
+import {
+  shouldRouteToPhone,
+  formatAnswerReason,
+  formatCancelReason,
+} from "./ask-user-question.js"
+import type { PluginMessage, TaskSummary, AskUserQuestion } from "./types.js"
 
 const RELAY_URL = "wss://relay.nuradev.app"
 
@@ -112,6 +119,100 @@ async function sendMessages(messages: PluginMessage[]): Promise<void> {
   })
 }
 
+const QUESTION_WS_URL = "wss://relay.nuradev.app"
+const OPEN_TIMEOUT_MS = 3000
+
+interface Verdict {
+  request_id: string
+  answers?: Record<string, string>
+  cancelled?: boolean
+}
+
+export async function handleAskUserQuestion(
+  sessionId: string,
+  payload: HookPayload,
+  cwd: string = process.cwd()
+): Promise<string | null> {
+  const questions = payload.tool_input?.questions as AskUserQuestion[] | undefined
+  if (!questions || !shouldRouteToPhone(questions)) return null
+
+  const token = readToken(cwd)
+  if (!token) return null
+
+  const request_id = randomUUID()
+  const verdict = await connectAndAwait(token.pluginToken, sessionId, request_id, questions, true)
+  if (!verdict) return null
+
+  const reason = verdict.cancelled
+    ? formatCancelReason()
+    : formatAnswerReason(verdict.answers ?? {})
+
+  return JSON.stringify({ decision: "block", reason })
+}
+
+async function connectAndAwait(
+  pluginToken: string,
+  sessionId: string,
+  request_id: string,
+  questions: AskUserQuestion[],
+  allowReconnect: boolean
+): Promise<Verdict | null> {
+  const url = `${QUESTION_WS_URL}?client=question&pluginToken=${encodeURIComponent(pluginToken)}`
+
+  return new Promise<Verdict | null>((resolve) => {
+    let ws: WebSocket | null = null
+    let openTimer: ReturnType<typeof setTimeout> | null = null
+    let resolved = false
+
+    const finish = (v: Verdict | null) => {
+      if (resolved) return
+      resolved = true
+      if (openTimer) clearTimeout(openTimer)
+      try { ws?.close() } catch { /* ignore */ }
+      resolve(v)
+    }
+
+    try {
+      ws = new WebSocket(url)
+    } catch {
+      finish(null)
+      return
+    }
+
+    openTimer = setTimeout(() => finish(null), OPEN_TIMEOUT_MS)
+
+    ws.addEventListener("open", () => {
+      if (openTimer) { clearTimeout(openTimer); openTimer = null }
+      ws!.send(JSON.stringify({
+        type: "ask_user_question",
+        session_id: sessionId,
+        request_id,
+        questions,
+      }))
+    })
+
+    ws.addEventListener("message", (ev) => {
+      let data: { type?: string; request_id?: string; answers?: Record<string, string>; cancelled?: boolean }
+      try { data = JSON.parse(ev.data as string) } catch { return }
+      if (data?.type === "ask_user_question_verdict" && data.request_id === request_id) {
+        finish({ request_id, answers: data.answers, cancelled: data.cancelled })
+      }
+    })
+
+    ws.addEventListener("error", () => finish(null))
+    ws.addEventListener("close", () => {
+      if (resolved) return
+      // Connection dropped before verdict arrived — try one reconnect with the same request_id.
+      // The relay holds the verdict for ~30s for this case (see relay-side spec).
+      if (allowReconnect) {
+        connectAndAwait(pluginToken, sessionId, request_id, questions, false).then(finish)
+      } else {
+        finish(null)
+      }
+    })
+  })
+}
+
 async function main() {
   const phaseArg = process.argv.find((a) => a.startsWith("--phase="))?.split("=")[1]
     ?? (process.argv.includes("--stop") ? "stop" : "start")
@@ -138,6 +239,16 @@ async function main() {
   if (phase !== "stop") {
     const raw = await Bun.stdin.text()
     try { payload = JSON.parse(raw) as HookPayload } catch { /* ignore malformed input */ }
+  }
+
+  // AskUserQuestion mobile routing — only on start phase, only when paired and supported.
+  if (phase === "start" && payload.tool_name === "AskUserQuestion") {
+    const json = await handleAskUserQuestion(sessionId, payload)
+    if (json) {
+      process.stdout.write(json)
+      process.exit(0)
+    }
+    // null → fall through to terminal (buildEvents returns [] for AUQ anyway, see Task 3)
   }
 
   const events = buildEvents(sessionId, phase, payload)
