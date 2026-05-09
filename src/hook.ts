@@ -136,11 +136,19 @@ export async function handleAskUserQuestion(
   if (!questions || !shouldRouteToPhone(questions)) return null
 
   const token = readToken(cwd)
-  if (!token) return null
+  if (!token) {
+    process.stderr.write(`nuradev: AskUserQuestion routing skipped — no token for cwd ${cwd}\n`)
+    return null
+  }
 
   const request_id = randomUUID()
   const verdict = await connectAndAwait(token.pluginToken, sessionId, request_id, questions, true)
   if (!verdict) return null
+
+  if (!verdict.cancelled && (!verdict.answers || Object.keys(verdict.answers).length === 0)) {
+    process.stderr.write("nuradev: AskUserQuestion verdict had no answers — falling back to terminal\n")
+    return null
+  }
 
   const reason = verdict.cancelled
     ? formatCancelReason()
