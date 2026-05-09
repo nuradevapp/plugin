@@ -4,10 +4,7 @@ export function shouldRouteToPhone(questions: AskUserQuestion[]): boolean {
   if (!Array.isArray(questions) || questions.length === 0) return false
   return questions.every((q) => {
     if (q.multiSelect === true) return false
-    return (q.options ?? []).every((o) => {
-      const preview = (o as { preview?: unknown }).preview
-      return preview === undefined
-    })
+    return (q.options ?? []).every((o) => o.preview === undefined)
   })
 }
 

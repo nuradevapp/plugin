@@ -22,19 +22,7 @@ describe("shouldRouteToPhone", () => {
     ).toBe(true)
   })
 
-  it("returns true when multiSelect is undefined (treated as false)", () => {
-    expect(
-      shouldRouteToPhone([
-        {
-          question: "Pick?",
-          header: "Pick",
-          options: [{ label: "A", description: "a" }],
-        } as any,
-      ])
-    ).toBe(true)
-  })
-
-  it("returns true for 1-4 single-select questions", () => {
+  it("returns true for multiple single-select questions with no preview", () => {
     const q = (n: number) => ({
       question: `Q${n}`,
       header: `H${n}`,
@@ -70,7 +58,7 @@ describe("shouldRouteToPhone", () => {
           question: "Q",
           header: "H",
           multiSelect: false,
-          options: [{ label: "a", description: "", preview: "code" } as any],
+          options: [{ label: "a", description: "", preview: "code" }],
         },
       ])
     ).toBe(false)

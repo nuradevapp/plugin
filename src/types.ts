@@ -37,7 +37,7 @@ export interface AskUserQuestion {
   question:    string
   header:      string
   multiSelect: boolean
-  options:     Array<{ label: string; description: string }>
+  options:     Array<{ label: string; description: string; preview?: string }>
 }
 
 // Relay → Plugin
