@@ -4,14 +4,21 @@ import {
   setCommandHandler,
   setPermissionVerdictHandler,
   setChannelEventHandler,
+  setAskUserQuestionVerdictHandler,
+  setSessionReadyHandler,
   getSessionId,
   sendThinking,
   sendActivityClear,
+  sendAskUserQuestion,
+  sendCancelAskUserQuestion,
   destroyRelay,
 } from "./relay.js"
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
 import { log } from "./log.js"
 import { saveAttachment, formatAttachmentRef } from "./attachments.js"
+import { startServer, getPluginSocketPath, type IpcServer } from "./ipc.js"
+import { createBroker, type Broker } from "./plugin-auq.js"
+import type { PluginMessage } from "./types.js"
 
 export function parseVoiceCommand(text: string): string | null {
   const lower = text.trim().toLowerCase()
@@ -38,6 +45,33 @@ export function handleCommand(
 async function main() {
   // Route relay channel events (pairing code, paired, disconnect, reconnect) to MCP
   setChannelEventHandler(sendChannelEvent)
+
+  let ipcServer: IpcServer | null = null
+  let broker: Broker | null = null
+
+  const startAuqBroker = async (sessionId: string) => {
+    if (broker) return
+    broker = createBroker({
+      sendToRelay: (msg: PluginMessage) => {
+        if (msg.type === "ask_user_question") {
+          sendAskUserQuestion(msg.session_id, msg.request_id, msg.questions)
+        } else if (msg.type === "cancel_ask_user_question") {
+          sendCancelAskUserQuestion(msg.session_id, msg.request_id)
+        }
+      },
+    })
+    setAskUserQuestionVerdictHandler((msg) => broker!.onRelayVerdict(msg))
+    try {
+      ipcServer = await startServer(getPluginSocketPath(sessionId), (conn, msg) => {
+        broker!.onIpcMessage(conn, msg)
+      })
+      log("auq:ipc:bound", { sessionId, path: getPluginSocketPath(sessionId) })
+    } catch (err) {
+      log("auq:ipc:bind-failed", { sessionId, error: (err as Error).message })
+    }
+  }
+
+  setSessionReadyHandler(startAuqBroker)
 
   // 1-3. Connect to relay, register, and request pairing code
   try {
@@ -105,8 +139,10 @@ async function main() {
   // 5. Connect MCP to Claude Code via stdio (after relay is ready)
   await connectMcp()
 
-  const shutdown = () => {
+  const shutdown = async () => {
     try { sendActivityClear() } catch { /* ignore */ }
+    try { broker?.shutdown() } catch { /* ignore */ }
+    try { await ipcServer?.stop() } catch { /* ignore */ }
     destroyRelay()
     process.exit(0)
   }

@@ -54,6 +54,7 @@ type CommandHandler = (command: string) => void
 type AskUserQuestionVerdictHandler = (
   msg: { type: "ask_user_question_verdict"; request_id: string; answers?: Record<string, string>; cancelled?: boolean }
 ) => void
+type SessionReadyHandler = (sessionId: string) => void
 
 let ws: WebSocket | null = null
 let sessionId: string | null = null
@@ -66,6 +67,7 @@ let onPermissionVerdict: PermissionVerdictHandler = () => {}
 let onChannelEvent: ChannelEventHandler = () => {}
 let onCommand: CommandHandler = () => {}
 let onAskUserQuestionVerdict: AskUserQuestionVerdictHandler = () => {}
+let onSessionReady: SessionReadyHandler = () => {}
 
 function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
@@ -74,6 +76,7 @@ function handleMessage(msg: RelayMessage) {
       sessionId = msg.sessionId
       Bun.write(`/tmp/nuradev-session.${process.ppid}`, msg.sessionId).catch(() => {})
       if (paired) updateSessionId(cwd, msg.sessionId)
+      if (isFirstConnect) onSessionReady(msg.sessionId)
       if (!isFirstConnect) {
         // WebSocket reconnect within the same session — skip re-pairing
         showReconnected()
@@ -294,6 +297,10 @@ export function setChannelEventHandler(handler: ChannelEventHandler) {
 
 export function setCommandHandler(handler: CommandHandler) {
   onCommand = handler
+}
+
+export function setSessionReadyHandler(handler: SessionReadyHandler) {
+  onSessionReady = handler
 }
 
 export async function connectRelay(): Promise<void> {
