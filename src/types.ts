@@ -24,6 +24,10 @@ export type PluginMessage =
       request_id: string
       questions: AskUserQuestion[]
     }
+  | { type: "cancel_ask_user_question"
+      session_id: string
+      request_id: string
+    }
   | { type: "thinking"; session_id: string }
 
 export interface TaskSummary {
