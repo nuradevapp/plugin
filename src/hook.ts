@@ -1,15 +1,16 @@
 import { existsSync, readFileSync } from "fs"
 import { randomUUID } from "crypto"
 import { formatActivity } from "./activity.js"
-import { readToken } from "./token-file.js"
 import {
   shouldRouteToPhone,
   formatAnswerReason,
   formatCancelReason,
 } from "./ask-user-question.js"
-import type { PluginMessage, TaskSummary, AskUserQuestion } from "./types.js"
+import { connectClient, getPluginSocketPath } from "./ipc.js"
+import { log } from "./log.js"
 
 const RELAY_URL = "wss://relay.nuradev.app"
+import type { PluginMessage, TaskSummary, AskUserQuestion } from "./types.js"
 
 function getSessionFile(): string {
   try {
@@ -119,7 +120,7 @@ async function sendMessages(messages: PluginMessage[]): Promise<void> {
   })
 }
 
-const OPEN_TIMEOUT_MS = 3000
+const IPC_CONNECT_TIMEOUT_MS = 1000
 
 interface Verdict {
   request_id: string
@@ -130,23 +131,48 @@ interface Verdict {
 export async function handleAskUserQuestion(
   sessionId: string,
   payload: HookPayload,
-  cwd: string = process.cwd()
+  socketPathOverride?: string,
 ): Promise<string | null> {
   const questions = payload.tool_input?.questions as AskUserQuestion[] | undefined
-  if (!questions || !shouldRouteToPhone(questions)) return null
-
-  const token = readToken(cwd)
-  if (!token) {
-    process.stderr.write(`nuradev: AskUserQuestion routing skipped — no token for cwd ${cwd}\n`)
+  if (!questions || !shouldRouteToPhone(questions)) {
+    log("hook:auq:skip:gate", { has_questions: !!questions, n: questions?.length ?? 0 })
     return null
   }
 
+  const socketPath = socketPathOverride ?? getPluginSocketPath(sessionId)
   const request_id = randomUUID()
-  const verdict = await connectAndAwait(token.pluginToken, sessionId, request_id, questions, true)
-  if (!verdict) return null
 
+  let client
+  try {
+    client = await connectClient(socketPath, IPC_CONNECT_TIMEOUT_MS)
+  } catch (err) {
+    log("hook:auq:skip:no-ipc", { socketPath, error: (err as Error).message })
+    return null
+  }
+
+  const verdict = await new Promise<Verdict | null>((resolve) => {
+    let settled = false
+    const finish = (v: Verdict | null) => {
+      if (settled) return
+      settled = true
+      try { client!.close() } catch { /* ignore */ }
+      resolve(v)
+    }
+    client!.onMessage((m: any) => {
+      if (m?.type === "ask_user_question_verdict" && m.request_id === request_id) {
+        finish({ request_id, answers: m.answers, cancelled: m.cancelled })
+      }
+    })
+    client!.onClose(() => finish(null))
+    client!.send({ type: "ask_user_question", request_id, session_id: sessionId, questions })
+  })
+
+  if (!verdict) {
+    log("hook:auq:skip:no-verdict", { request_id })
+    return null
+  }
   if (!verdict.cancelled && (!verdict.answers || Object.keys(verdict.answers).length === 0)) {
-    process.stderr.write("nuradev: AskUserQuestion verdict had no answers — falling back to terminal\n")
+    log("hook:auq:skip:empty-verdict", { request_id })
     return null
   }
 
@@ -155,72 +181,6 @@ export async function handleAskUserQuestion(
     : formatAnswerReason(verdict.answers ?? {})
 
   return JSON.stringify({ decision: "block", reason })
-}
-
-async function connectAndAwait(
-  pluginToken: string,
-  sessionId: string,
-  request_id: string,
-  questions: AskUserQuestion[],
-  allowReconnect: boolean
-): Promise<Verdict | null> {
-  const url = `${RELAY_URL}?client=question&pluginToken=${encodeURIComponent(pluginToken)}`
-
-  return new Promise<Verdict | null>((resolve) => {
-    let ws: WebSocket | null = null
-    let openTimer: ReturnType<typeof setTimeout> | null = null
-    let resolved = false
-
-    const finish = (v: Verdict | null) => {
-      if (resolved) return
-      resolved = true
-      if (openTimer) clearTimeout(openTimer)
-      try { ws?.close() } catch { /* ignore */ }
-      resolve(v)
-    }
-
-    try {
-      ws = new WebSocket(url)
-    } catch {
-      finish(null)
-      return
-    }
-
-    openTimer = setTimeout(() => finish(null), OPEN_TIMEOUT_MS)
-
-    ws.addEventListener("open", () => {
-      if (openTimer) { clearTimeout(openTimer); openTimer = null }
-      ws!.send(JSON.stringify({
-        type: "ask_user_question",
-        session_id: sessionId,
-        request_id,
-        questions,
-      }))
-    })
-
-    ws.addEventListener("message", (ev) => {
-      let data: { type?: string; request_id?: string; answers?: Record<string, string>; cancelled?: boolean }
-      try { data = JSON.parse(ev.data as string) } catch { return }
-      if (data?.type === "ask_user_question_verdict" && data.request_id === request_id) {
-        finish({ request_id, answers: data.answers, cancelled: data.cancelled })
-      }
-    })
-
-    ws.addEventListener("error", () => finish(null))
-    ws.addEventListener("close", () => {
-      if (resolved) return
-      // Connection dropped before verdict arrived — try one reconnect with the same request_id.
-      // The relay holds the verdict for ~30s for this case (see relay-side spec).
-      if (allowReconnect) {
-        connectAndAwait(pluginToken, sessionId, request_id, questions, false).then((v) => {
-          if (resolved) return  // outer promise already resolved (e.g. message + close raced)
-          finish(v)
-        })
-      } else {
-        finish(null)
-      }
-    })
-  })
 }
 
 async function main() {
