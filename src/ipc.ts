@@ -64,7 +64,7 @@ export async function startServer(
         const closeFns: Array<() => void> = []
         const conn: IpcConnection = {
           send(obj) { socket.write(JSON.stringify(obj) + "\n") },
-          onMessage(_fn) { /* server-side conn delivers messages via onMessage callback, not per-conn */ },
+          onMessage(_fn) { throw new Error("onMessage not available on server-side IpcConnection — use the startServer onMessage callback") },
           onClose(fn) { closeFns.push(fn) },
           close() { socket.end() },
         }
@@ -94,28 +94,39 @@ export async function connectClient(
 ): Promise<IpcConnection> {
   const decoder = new TextDecoder()
   let messageFn: ((m: any) => void) | null = null
-  let closeFn: (() => void) | null = null
+  const closeFns: Array<() => void> = []
+
+  const fireClose = () => closeFns.forEach((fn) => { try { fn() } catch { /* ignore */ } })
 
   const framer = makeFramer((msg) => { messageFn?.(msg) })
 
-  const socket = await Promise.race([
-    Bun.connect({
-      unix: socketPath,
-      socket: {
-        data(_s, buffer) { feed(framer, decoder.decode(buffer)) },
-        close() { closeFn?.() },
-        error() { closeFn?.() },
-      },
-    }),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`ipc connect timeout: ${socketPath}`)), timeoutMs),
-    ),
-  ])
+  const connectPromise = Bun.connect({
+    unix: socketPath,
+    socket: {
+      data(_s, buffer) { feed(framer, decoder.decode(buffer)) },
+      close() { fireClose() },
+      error() { fireClose() },
+    },
+  })
+
+  let socket: Awaited<typeof connectPromise>
+  try {
+    socket = await Promise.race([
+      connectPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`ipc connect timeout: ${socketPath}`)), timeoutMs),
+      ),
+    ])
+  } catch (err) {
+    // If the connect eventually resolves anyway, close the orphan.
+    connectPromise.then((s) => { try { s.end() } catch { /* ignore */ } }).catch(() => {})
+    throw err
+  }
 
   return {
     send(obj) { socket.write(JSON.stringify(obj) + "\n") },
     onMessage(fn) { messageFn = fn },
-    onClose(fn) { closeFn = fn },
+    onClose(fn) { closeFns.push(fn) },
     close() { socket.end() },
   }
 }

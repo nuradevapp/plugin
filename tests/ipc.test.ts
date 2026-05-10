@@ -103,6 +103,27 @@ describe("ipc transport", () => {
     await new Promise((r) => setTimeout(r, 50))
     expect(closed).toBe(true)
 
+    client.close()
+    rmSync(path, { force: true })
+  })
+
+  it("closing one client doesn't affect others", async () => {
+    const path = tmpSocketPath()
+    const received: any[] = []
+    const server = await startServer(path, (_conn, msg) => { received.push(msg) })
+
+    const a = await connectClient(path, 1000)
+    const b = await connectClient(path, 1000)
+
+    a.close()
+    await new Promise((r) => setTimeout(r, 30))
+
+    b.send({ from: "b" })
+    await new Promise((r) => setTimeout(r, 30))
+    expect(received).toEqual([{ from: "b" }])
+
+    b.close()
+    await server.stop()
     rmSync(path, { force: true })
   })
 })
