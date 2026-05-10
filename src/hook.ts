@@ -8,9 +8,9 @@ import {
 } from "./ask-user-question.js"
 import { connectClient, getPluginSocketPath } from "./ipc.js"
 import { log } from "./log.js"
+import type { PluginMessage, TaskSummary, AskUserQuestion } from "./types.js"
 
 const RELAY_URL = "wss://relay.nuradev.app"
-import type { PluginMessage, TaskSummary, AskUserQuestion } from "./types.js"
 
 function getSessionFile(): string {
   try {
