@@ -51,6 +51,9 @@ type MessageHandler = (text: string, image?: { base64: string; media_type: strin
 type PermissionVerdictHandler = (request_id: string, allow: boolean) => void
 type ChannelEventHandler = (content: string, meta?: Record<string, unknown>) => void
 type CommandHandler = (command: string) => void
+type AskUserQuestionVerdictHandler = (
+  msg: { type: "ask_user_question_verdict"; request_id: string; answers?: Record<string, string>; cancelled?: boolean }
+) => void
 
 let ws: WebSocket | null = null
 let sessionId: string | null = null
@@ -62,6 +65,7 @@ let onMessage: MessageHandler = () => {}
 let onPermissionVerdict: PermissionVerdictHandler = () => {}
 let onChannelEvent: ChannelEventHandler = () => {}
 let onCommand: CommandHandler = () => {}
+let onAskUserQuestionVerdict: AskUserQuestionVerdictHandler = () => {}
 
 function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
@@ -142,6 +146,10 @@ function handleMessage(msg: RelayMessage) {
 
     case "permission_verdict":
       onPermissionVerdict(msg.request_id, msg.allow)
+      break
+
+    case "ask_user_question_verdict":
+      onAskUserQuestionVerdict(msg)
       break
 
     case "app_disconnected":
@@ -266,6 +274,18 @@ export function setMessageHandler(handler: MessageHandler) {
 
 export function setPermissionVerdictHandler(handler: PermissionVerdictHandler) {
   onPermissionVerdict = handler
+}
+
+export function setAskUserQuestionVerdictHandler(handler: AskUserQuestionVerdictHandler) {
+  onAskUserQuestionVerdict = handler
+}
+
+export function sendAskUserQuestion(session_id: string, request_id: string, questions: any[]) {
+  ws?.send(JSON.stringify({ type: "ask_user_question", session_id, request_id, questions }))
+}
+
+export function sendCancelAskUserQuestion(session_id: string, request_id: string) {
+  ws?.send(JSON.stringify({ type: "cancel_ask_user_question", session_id, request_id }))
 }
 
 export function setChannelEventHandler(handler: ChannelEventHandler) {
