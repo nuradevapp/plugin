@@ -55,8 +55,9 @@ export function createBroker(deps: { sendToRelay: (msg: PluginMessage) => void }
     },
 
     shutdown() {
-      for (const [, entry] of pending) entry.conn.close()
+      const entries = [...pending.values()]
       pending.clear()
+      for (const entry of entries) entry.conn.close()
     },
   }
 }

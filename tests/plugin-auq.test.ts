@@ -92,6 +92,27 @@ describe("plugin-auq broker", () => {
     expect(conn.sent).toHaveLength(0)
   })
 
+  it("shutdown closes hook connections without sending cancel", () => {
+    const sentToRelay: PluginMessage[] = []
+    const broker = createBroker({ sendToRelay: (m) => sentToRelay.push(m) })
+    const conn = fakeConn()
+
+    broker.onIpcMessage(conn, {
+      type: "ask_user_question",
+      request_id: "r1",
+      session_id: "s1",
+      questions: [],
+    })
+
+    broker.shutdown()
+
+    // hook should observe close (so it can fall back to terminal)
+    expect(conn.closeFns.length).toBeGreaterThan(0)
+    // but no cancel should have been sent to the relay
+    const cancels = sentToRelay.filter((m) => m.type === "cancel_ask_user_question")
+    expect(cancels).toHaveLength(0)
+  })
+
   it("routes concurrent requests independently", () => {
     const broker = createBroker({ sendToRelay: () => {} })
     const a = fakeConn()
