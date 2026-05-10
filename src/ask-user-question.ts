@@ -1,11 +1,7 @@
 import type { AskUserQuestion } from "./types.js"
 
 export function shouldRouteToPhone(questions: AskUserQuestion[]): boolean {
-  if (!Array.isArray(questions) || questions.length === 0) return false
-  return questions.every((q) => {
-    if (q.multiSelect === true) return false
-    return (q.options ?? []).every((o) => o.preview === undefined)
-  })
+  return Array.isArray(questions) && questions.length > 0
 }
 
 function escapeQuotes(s: string): string {

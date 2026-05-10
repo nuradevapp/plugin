@@ -32,7 +32,7 @@ describe("shouldRouteToPhone", () => {
     expect(shouldRouteToPhone([q(1), q(2), q(3), q(4)])).toBe(true)
   })
 
-  it("returns false when any question has multiSelect=true", () => {
+  it("returns true when any question has multiSelect=true (now allowed on phone)", () => {
     expect(
       shouldRouteToPhone([
         {
@@ -48,10 +48,10 @@ describe("shouldRouteToPhone", () => {
           options: [{ label: "x", description: "" }],
         },
       ])
-    ).toBe(false)
+    ).toBe(true)
   })
 
-  it("returns false when any option has a preview field", () => {
+  it("returns true when an option has a preview field (now allowed on phone)", () => {
     expect(
       shouldRouteToPhone([
         {
@@ -61,7 +61,7 @@ describe("shouldRouteToPhone", () => {
           options: [{ label: "a", description: "", preview: "code" }],
         },
       ])
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it("returns false on empty questions array", () => {
