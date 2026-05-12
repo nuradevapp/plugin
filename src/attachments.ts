@@ -22,6 +22,20 @@ export function extFor(mediaType: string, fileName?: string): string {
   return m ? m[1].toLowerCase() : "bin"
 }
 
+const MEDIA_BY_EXT: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+}
+
+export function imageMediaTypeFromPath(path: string): string {
+  const m = path.match(/\.([a-zA-Z0-9]+)$/)
+  const ext = m ? m[1].toLowerCase() : ""
+  return MEDIA_BY_EXT[ext] ?? "image/jpeg"
+}
+
 export function saveAttachment(base64: string, mediaType: string, fileName?: string): string {
   mkdirSync(ATTACH_DIR, { recursive: true })
   const ext = extFor(mediaType, fileName)

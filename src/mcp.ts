@@ -1,8 +1,10 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js"
+import { readFileSync } from "fs"
 import { z } from "zod"
 import { sendReply, sendReplyWithDetail, sendPermissionRequest, requestPairingCode } from "./relay.js"
+import { imageMediaTypeFromPath } from "./attachments.js"
 
 export const mcp = new Server(
   { name: "nuradev", version: "2026.05.09.3" },
@@ -31,7 +33,8 @@ export const mcp = new Server(
       '\n' +
       'reply tool params:\n' +
       '- `text`: TTS-friendly summary, ≤200 chars (it is read aloud).\n' +
-      '- `full_content`: the complete response, when longer than ~2 sentences.',
+      '- `full_content`: the complete response, when longer than ~2 sentences.\n' +
+      '- `image_path`: absolute path to an image file to attach. STRONGLY PREFER this over `image_base64`. For screenshots (e.g. Playwright `browser_take_screenshot`), pass a `filename` so the file is saved to disk, then forward that path here. Never inline base64 unless you already have raw bytes with no path.',
   }
 )
 
@@ -51,13 +54,17 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
             type: "string",
             description: "Full response shown when user taps the card. Use when reply is longer than 2 sentences.",
           },
+          image_path: {
+            type: "string",
+            description: "Absolute path to an image file on disk to attach. Preferred over image_base64 — avoids piping large base64 strings through the model context. For Playwright screenshots, pass a filename to browser_take_screenshot and forward the resulting path here.",
+          },
           image_base64: {
             type: "string",
-            description: "Base64-encoded image to display in the app alongside the text reply.",
+            description: "Base64-encoded image. Use only when you already have raw bytes and no file path is available; otherwise prefer image_path.",
           },
           image_media_type: {
             type: "string",
-            description: "MIME type of the image (e.g. image/jpeg, image/png). Defaults to image/jpeg.",
+            description: "MIME type of image_base64 (e.g. image/jpeg, image/png). Defaults to image/jpeg. Ignored when image_path is set (media type is inferred from the file extension).",
           },
         },
         required: ["text"],
@@ -77,15 +84,24 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (req.params.name === "reply") {
-    const { text, full_content, image_base64, image_media_type } = req.params.arguments as {
+    const { text, full_content, image_path, image_base64, image_media_type } = req.params.arguments as {
       text: string
       full_content?: string
+      image_path?: string
       image_base64?: string
       image_media_type?: string
     }
-    const image = image_base64
-      ? { base64: image_base64, media_type: image_media_type ?? "image/jpeg" }
-      : undefined
+    let image: { base64: string; media_type: string } | undefined
+    if (image_path) {
+      try {
+        const bytes = readFileSync(image_path)
+        image = { base64: bytes.toString("base64"), media_type: imageMediaTypeFromPath(image_path) }
+      } catch (err) {
+        return { content: [{ type: "text", text: `failed to read image_path ${image_path}: ${(err as Error).message}` }], isError: true }
+      }
+    } else if (image_base64) {
+      image = { base64: image_base64, media_type: image_media_type ?? "image/jpeg" }
+    }
     if (full_content) {
       sendReplyWithDetail(text, full_content, image)
     } else {
