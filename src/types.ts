@@ -2,8 +2,8 @@
 export type PluginMessage =
   | { type: "register_plugin"; sessionId?: string }
   | { type: "request_pairing_code" }
-  | { type: "reply"; session_id: string; text: string; image_base64?: string; image_media_type?: string }
-  | { type: "reply_with_detail"; session_id: string; message: string; full_content: string; image_base64?: string; image_media_type?: string }
+  | { type: "reply"; session_id: string; text: string; image_base64?: string; image_media_type?: string; file_base64?: string; file_name?: string; file_media_type?: string }
+  | { type: "reply_with_detail"; session_id: string; message: string; full_content: string; image_base64?: string; image_media_type?: string; file_base64?: string; file_name?: string; file_media_type?: string }
   | { type: "status"; session_id: string; text: string }
   | { type: "task_update"; session_id: string; task: TaskSummary }
   | {
