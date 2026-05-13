@@ -2,9 +2,10 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js"
 import { readFileSync } from "fs"
+import { basename } from "path"
 import { z } from "zod"
 import { sendReply, sendReplyWithDetail, sendPermissionRequest, requestPairingCode } from "./relay.js"
-import { imageMediaTypeFromPath } from "./attachments.js"
+import { imageMediaTypeFromPath, mediaTypeFromPath } from "./attachments.js"
 
 export const mcp = new Server(
   { name: "nuradev", version: "2026.05.09.3" },
@@ -68,6 +69,10 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
             type: "string",
             description: "MIME type of image_base64 (e.g. image/jpeg, image/png). Defaults to image/jpeg. Ignored when image_path is set (media type is inferred from the file extension).",
           },
+          file_path: {
+            type: "string",
+            description: "Absolute path to a non-image file to attach (PDF, JSON, markdown, text, CSV, archives, etc.). Plugin reads the bytes, derives the filename from the path's basename, and detects the media type from the extension. Mutually exclusive with image_path / image_base64.",
+          },
         },
         required: ["text"],
       },
@@ -86,14 +91,23 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (req.params.name === "reply") {
-    const { text, full_content, image_path, image_base64, image_media_type } = req.params.arguments as {
+    const { text, full_content, image_path, image_base64, image_media_type, file_path } = req.params.arguments as {
       text: string
       full_content?: string
       image_path?: string
       image_base64?: string
       image_media_type?: string
+      file_path?: string
+    }
+    const imageProvided = !!(image_path || image_base64)
+    if (file_path && imageProvided) {
+      return {
+        content: [{ type: "text", text: "file_path is mutually exclusive with image_path / image_base64" }],
+        isError: true,
+      }
     }
     let image: { base64: string; media_type: string } | undefined
+    let file:  { base64: string; name: string; media_type: string } | undefined
     if (image_path) {
       try {
         const bytes = readFileSync(image_path)
@@ -104,10 +118,18 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
     } else if (image_base64) {
       image = { base64: image_base64, media_type: image_media_type ?? "image/jpeg" }
     }
+    if (file_path) {
+      try {
+        const bytes = readFileSync(file_path)
+        file = { base64: bytes.toString("base64"), name: basename(file_path), media_type: mediaTypeFromPath(file_path) }
+      } catch (err) {
+        return { content: [{ type: "text", text: `failed to read file_path ${file_path}: ${(err as Error).message}` }], isError: true }
+      }
+    }
     if (full_content) {
-      sendReplyWithDetail(text, full_content, image)
+      sendReplyWithDetail(text, full_content, image, file)
     } else {
-      sendReply(text, image)
+      sendReply(text, image, file)
     }
     return { content: [{ type: "text", text: "sent" }] }
   }
