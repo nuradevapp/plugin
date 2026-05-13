@@ -8,7 +8,7 @@ import { sendReply, sendReplyWithDetail, sendPermissionRequest, requestPairingCo
 import { imageMediaTypeFromPath, mediaTypeFromPath } from "./attachments.js"
 
 export const mcp = new Server(
-  { name: "nuradev", version: "2026.05.09.3" },
+  { name: "nuradev", version: "2026.05.14" },
   {
     capabilities: {
       experimental: {
