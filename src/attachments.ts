@@ -14,6 +14,7 @@ const EXTS: Record<string, string> = {
   "application/json": "json",
   "text/markdown": "md",
   "text/csv": "csv",
+  "application/zip": "zip",
 }
 
 export function extFor(mediaType: string, fileName?: string): string {
