@@ -23,17 +23,30 @@ export function extFor(mediaType: string, fileName?: string): string {
 }
 
 const MEDIA_BY_EXT: Record<string, string> = {
-  jpg: "image/jpeg",
+  jpg:  "image/jpeg",
   jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
+  png:  "image/png",
+  gif:  "image/gif",
   webp: "image/webp",
+  pdf:  "application/pdf",
+  txt:  "text/plain",
+  md:   "text/markdown",
+  csv:  "text/csv",
+  json: "application/json",
+  zip:  "application/zip",
+}
+
+function extOf(path: string): string {
+  const m = path.match(/\.([a-zA-Z0-9]+)$/)
+  return m ? m[1].toLowerCase() : ""
+}
+
+export function mediaTypeFromPath(path: string): string {
+  return MEDIA_BY_EXT[extOf(path)] ?? "application/octet-stream"
 }
 
 export function imageMediaTypeFromPath(path: string): string {
-  const m = path.match(/\.([a-zA-Z0-9]+)$/)
-  const ext = m ? m[1].toLowerCase() : ""
-  return MEDIA_BY_EXT[ext] ?? "image/jpeg"
+  return MEDIA_BY_EXT[extOf(path)] ?? "image/jpeg"
 }
 
 export function saveAttachment(base64: string, mediaType: string, fileName?: string): string {
