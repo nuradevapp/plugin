@@ -232,17 +232,27 @@ export function getSessionId(): string | null {
   return sessionId
 }
 
-export function sendReply(text: string, image?: { base64: string; media_type: string }) {
+export function sendReply(
+  text: string,
+  image?: { base64: string; media_type: string },
+  file?:  { base64: string; name: string; media_type: string },
+) {
   if (!sessionId) return
   ws?.send(JSON.stringify({
     type: "reply",
     session_id: sessionId,
     text,
     ...(image ? { image_base64: image.base64, image_media_type: image.media_type } : {}),
+    ...(file  ? { file_base64:  file.base64,  file_name:        file.name,        file_media_type: file.media_type } : {}),
   }))
 }
 
-export function sendReplyWithDetail(message: string, full_content: string, image?: { base64: string; media_type: string }) {
+export function sendReplyWithDetail(
+  message: string,
+  full_content: string,
+  image?: { base64: string; media_type: string },
+  file?:  { base64: string; name: string; media_type: string },
+) {
   if (!sessionId) return
   ws?.send(JSON.stringify({
     type: "reply_with_detail",
@@ -250,6 +260,7 @@ export function sendReplyWithDetail(message: string, full_content: string, image
     message,
     full_content,
     ...(image ? { image_base64: image.base64, image_media_type: image.media_type } : {}),
+    ...(file  ? { file_base64:  file.base64,  file_name:        file.name,        file_media_type: file.media_type } : {}),
   }))
 }
 
