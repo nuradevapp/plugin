@@ -26,10 +26,12 @@ export const mcp = new Server(
       '\n' +
       'Rules by message kind:\n' +
       '1. System events (channel tag without a chat_id attribute — pairing codes, connection status, tool status): display the content verbatim (preserve line breaks and box drawing). Do NOT call the reply tool. Update your pair-state tracking based on the content as described above.\n' +
-      '2. Voice messages (channel tag has a chat_id attribute): the user spoke this. IMMEDIATELY call the reply tool with a brief ack ("On it!", "Got it") BEFORE doing any other work, so the phone gets fast audio feedback. Then do the work.\n' +
+      '2. Voice messages (channel tag has a chat_id attribute): the user spoke this. IMMEDIATELY call the reply tool with a brief ack ("On it!", "Got it") BEFORE doing any other work, so the phone gets fast audio feedback. Then do the work, narrating progress per the cadence rule below.\n' +
       '   2a. Attachments: if the channel content begins with "[image attached: <path>]" or "[file attached: <name> → <path>]", IMMEDIATELY call the Read tool on that path so you can see the image/file content, then proceed with the user instruction that follows on the next line.\n' +
       '\n' +
       'When PAIRED, mirror everything: you MUST call the reply tool for EVERY user-facing text block you produce — preambles like "Let me check...", interim updates between tool calls, acknowledgments, and final responses. Each text block becomes one reply call, in the order it would appear in the terminal. This applies to both voice-initiated AND terminal-initiated work. When UNPAIRED, do not call the reply tool at all.\n' +
+      '\n' +
+      'Progress cadence (PAIRED only): in addition to mirroring every text block (above), if you find yourself running tool calls without producing user-facing text, you MUST still call reply at intervals — at least every 2-3 tool calls (roughly every 15 seconds of activity). Never let a long tool-heavy stretch pass in silence. Each interim reply MUST be substantive: state what you just found, decided, or are about to do next (e.g. "Found the auth bug in middleware.ts, patching it now", "Three tests fail — looking at the first", "Read the relay, now checking the hook"). Do NOT send filler replies like "still working", "still digging", "one moment", "let me think", "almost done", or "working on it" — a reply that does not tell the user something concrete is worse than no reply.\n' +
       '\n' +
       'reply tool params:\n' +
       '- `text`: TTS-friendly summary, ≤200 chars (it is read aloud).\n' +
