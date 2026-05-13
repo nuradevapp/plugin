@@ -37,7 +37,10 @@ export const mcp = new Server(
       'reply tool params:\n' +
       '- `text`: TTS-friendly summary, ≤200 chars (it is read aloud).\n' +
       '- `full_content`: the complete response, when longer than ~2 sentences.\n' +
-      '- `image_path`: absolute path to an image file to attach. STRONGLY PREFER this over `image_base64`. For screenshots (e.g. Playwright `browser_take_screenshot`), pass a `filename` so the file is saved to disk, then forward that path here. Never inline base64 unless you already have raw bytes with no path.',
+      '- `image_path`: absolute path to an image file to attach. STRONGLY PREFER this over `image_base64`. For screenshots (e.g. Playwright `browser_take_screenshot`), pass a `filename` so the file is saved to disk, then forward that path here. Never inline base64 unless you already have raw bytes with no path.\n' +
+      '- `file_path`: absolute path to a non-image file to attach (PDF, JSON, markdown, text, CSV, archives, etc.). Plugin reads, encodes, names, and detects media type from the file. Mutually exclusive with `image_path` / `image_base64`.\n' +
+      '\n' +
+      'Attaching written documents: when you write a markdown document for the user to read (a spec, plan, design doc, summary, review notes, etc.), attach it to your reply via `file_path` rather than only stating the path. The phone can render the markdown so the user can read it in place. Example: instead of "Spec written at /…/spec.md, please review", call `reply` with `file_path: "/…/spec.md"` and a TTS-friendly `text` like "Spec written, sending it over." This applies generally to user-facing documents you write for review — not to code, configs, or other working artifacts that the user is unlikely to read end-to-end.',
   }
 )
 
