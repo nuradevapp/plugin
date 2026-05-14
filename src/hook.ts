@@ -28,12 +28,7 @@ const SESSION_FILE = getSessionFile()
 
 export type HookPhase = "start" | "end" | "stop" | "session-start"
 
-const SESSION_START_INSTRUCTION = `The nuradev voice plugin mirrors all of your text output to the user's phone for TTS playback. Because of this, your text output is the user-facing voice channel — treat it that way:
-
-- Skip conversational filler and acknowledgments. Do not write "On it!", "Sure!", "Let me…", "I'll start by…", "Got it!", "Working on that now", or similar preamble before tool calls. Just call the tool.
-- Do not narrate what you're about to do, what you just did, or what you're thinking. The activity hook already shows the user every tool call in real time.
-- Only produce text output when you have something substantive for the user: the final answer, a question that needs their input, a blocker, or a meaningful status they couldn't infer from the activity feed.
-- Keep substantive output tight — every sentence is being spoken aloud.`
+const SESSION_START_INSTRUCTION = `The nuradev voice plugin mirrors every text block you produce to the user's phone — the user wants the same experience they'd get in the terminal, in the app. Behave exactly as you would in a terminal session: narrate decisions, acknowledge, produce preambles between tool calls, and explain what you're about to do. Every text block gets mirrored to the phone via the reply tool per the MCP server's rule, so do NOT suppress acknowledgments, narration, or interim updates. The only constraint: each text block is read aloud by TTS, so keep sentences clear and self-contained.`
 
 export interface HookPayload {
   tool_use_id?: string
