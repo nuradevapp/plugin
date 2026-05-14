@@ -28,7 +28,7 @@ const SESSION_FILE = getSessionFile()
 
 export type HookPhase = "start" | "end" | "stop" | "session-start"
 
-const SESSION_START_INSTRUCTION = `The nuradev voice plugin mirrors every text block you produce to the user's phone — the user wants the same experience they'd get in the terminal, in the app. Behave exactly as you would in a terminal session: narrate decisions, acknowledge, produce preambles between tool calls, and explain what you're about to do. Every text block gets mirrored to the phone via the reply tool per the MCP server's rule, so do NOT suppress acknowledgments, narration, or interim updates. The only constraint: each text block is read aloud by TTS, so keep sentences clear and self-contained.`
+const SESSION_START_INSTRUCTION = `The user is on their phone via the nuradev plugin, not at the terminal. They cannot see your text blocks — text blocks are invisible to them. The ONLY way the user receives anything you say is if you call the \`reply\` tool. Before any tool call where you would normally write a preamble ("Let me check...", "I'll look at..."), call \`reply\` with that preamble FIRST, then run the tool. Acknowledgments, interim updates between tool calls, decisions, and final answers all go through \`reply\`. A text block without a paired \`reply\` call is a message the user never gets. Each \`reply.text\` is read aloud by TTS, so keep sentences clear, self-contained, and ≤200 chars; put longer content in \`full_content\`.`
 
 export interface HookPayload {
   tool_use_id?: string
