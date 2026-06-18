@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { buildEvents } from "../src/hook"
+import { buildEvents, isOwnPluginTool } from "../src/hook"
 
 const baseHook = {
   tool_use_id: "tu_123",
@@ -111,5 +111,46 @@ describe("buildEvents", () => {
         timestamp: 1,
       })
     ).toEqual([])
+  })
+
+  it("returns empty for our own plugin tools (reply / request_pairing_code)", () => {
+    for (const name of [
+      "mcp__plugin_nuradev_nuradev__reply",
+      "mcp__nuradev__reply",
+      "mcp__plugin_nuradev_nuradev__request_pairing_code",
+    ]) {
+      expect(
+        buildEvents("s1", "start", {
+          tool_use_id: "tu_r",
+          tool_name: name,
+          tool_input: {},
+          timestamp: 1,
+        })
+      ).toEqual([])
+    }
+  })
+
+  it("still emits activity for third-party MCP tools", () => {
+    const out = buildEvents("s1", "start", {
+      tool_use_id: "tu_x",
+      tool_name: "mcp__some_other__do_thing",
+      tool_input: {},
+      timestamp: 1,
+    })
+    expect(out).toHaveLength(2)
+    expect(out[1]).toMatchObject({ type: "activity_event", event: { phase: "start" } })
+  })
+})
+
+describe("isOwnPluginTool", () => {
+  it("matches our nuradev reply / pairing tools, regardless of namespacing", () => {
+    expect(isOwnPluginTool("mcp__plugin_nuradev_nuradev__reply")).toBe(true)
+    expect(isOwnPluginTool("mcp__nuradev__request_pairing_code")).toBe(true)
+  })
+
+  it("does not match other tools", () => {
+    expect(isOwnPluginTool("Read")).toBe(false)
+    expect(isOwnPluginTool("mcp__nuradev__something_else")).toBe(false)
+    expect(isOwnPluginTool("mcp__other__reply")).toBe(false)
   })
 })

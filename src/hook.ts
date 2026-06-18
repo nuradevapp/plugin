@@ -50,6 +50,18 @@ function toTaskSummary(input: Record<string, unknown>, fallbackStatus: TaskSumma
   return t
 }
 
+// True when the tool is one of this plugin's own MCP tools. Claude Code exposes
+// them to the agent namespaced as `mcp__<server>__<tool>` (the server segment
+// contains "nuradev"), so match on that shape rather than a hard-coded prefix.
+const OWN_PLUGIN_TOOLS = ["reply", "request_pairing_code"]
+export function isOwnPluginTool(toolName: string): boolean {
+  if (!toolName.startsWith("mcp__") || !toolName.toLowerCase().includes("nuradev")) {
+    return false
+  }
+  const leaf = toolName.split("__").pop() ?? ""
+  return OWN_PLUGIN_TOOLS.includes(leaf)
+}
+
 export function buildEvents(
   sessionId: string,
   phase: HookPhase,
@@ -65,6 +77,11 @@ export function buildEvents(
   // AskUserQuestion is handled by the phone-routing path (handleAskUserQuestion in main)
   // or by the terminal menu. Either way, no activity feed entry.
   if (tool_name === "AskUserQuestion") return []
+
+  // Our own MCP tools (reply, request_pairing_code) are internal plumbing — the
+  // agent calling them is how it talks to the phone, not work worth surfacing.
+  // The agent sees them namespaced like `mcp__…nuradev…__reply`.
+  if (isOwnPluginTool(tool_name)) return []
 
   const { tool, summary } = formatActivity(tool_name, tool_input ?? {})
   const ts = timestamp ?? Date.now()
