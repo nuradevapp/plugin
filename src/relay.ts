@@ -37,7 +37,9 @@ function pairingBoxText(code: string, expiresIn: number): string {
   )
 }
 
-const RELAY_URL = "wss://relay.nuradev.app"
+// Users can point the plugin at a self-hosted relay via the plugin's
+// `relay_url` userConfig option, exported by Claude Code as an env var.
+const RELAY_URL = process.env.CLAUDE_PLUGIN_OPTION_RELAY_URL || "wss://relay.nuradev.app"
 const BACKOFF_STEPS = [2000, 4000, 8000, 16000, 30000]
 const cwd = process.cwd()
 

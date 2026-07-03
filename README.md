@@ -22,11 +22,17 @@ claude --dangerously-load-development-channels plugin:nuradev@nuradev
 
 A pairing code appears in your terminal. Open https://nuradev.app on your phone and enter the code.
 
-The `--dangerously-load-development-channels` flag is required during the channels research preview until Nura Dev is added to Anthropic's allowlist. Requires Claude Code v2.1.81 or later.
+Claude Code's official flag for channel plugins is `--channels plugin:nuradev@nuradev`, but during the channels research preview it only accepts plugins on Anthropic's allowlist. Until Nura Dev is allowlisted, use `--dangerously-load-development-channels` as shown above (Team/Enterprise orgs can alternatively allowlist Nura Dev via `allowedChannelPlugins` in managed settings and then use `--channels`). Requires Claude Code v2.1.81 or later.
+
+## Configuration
+
+The plugin works with zero configuration. One optional setting is prompted when you enable the plugin (or via `/plugin`):
+
+- **Relay URL** — WebSocket relay endpoint. Leave empty for the default `wss://relay.nuradev.app`; only set it if you run a self-hosted relay.
 
 ## Versioning
 
-Releases use [calver](https://calver.org) in `YYYY.MM.DD` format. The same string lives in three places (`manifest.json`, `package.json`, `.claude-plugin/marketplace.json`) and gets bumped together on each release.
+Releases use [calver](https://calver.org) in `YYYY.MM.DD` format. The same string lives in three places (`.claude-plugin/plugin.json`, `package.json`, `.claude-plugin/marketplace.json`) and gets bumped together on each release.
 
 ## Manual hook installation
 

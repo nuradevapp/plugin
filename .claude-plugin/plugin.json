@@ -1,6 +1,8 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "nuradev",
-  "version": "2026.06.18",
+  "displayName": "Nura Dev",
+  "version": "2026.07.03",
   "description": "Control your Claude Code session by voice from your phone — nuradev.app",
   "author": { "name": "Nura Dev", "email": "support@nuradev.app" },
   "homepage": "https://nuradev.app",
@@ -10,6 +12,18 @@
     "nuradev": {
       "command": "bun",
       "args": ["${CLAUDE_PLUGIN_ROOT}/src/index.ts"]
+    }
+  },
+  "channels": [
+    {
+      "server": "nuradev"
+    }
+  ],
+  "userConfig": {
+    "relay_url": {
+      "type": "string",
+      "title": "Relay URL",
+      "description": "WebSocket relay endpoint. Leave empty for wss://relay.nuradev.app — only set this if you run a self-hosted relay."
     }
   },
   "hooks": {
@@ -46,12 +60,63 @@
         ]
       }
     ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=failure"
+          }
+        ]
+      }
+    ],
+    "MessageDisplay": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=message"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=notification"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=stop"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=stop-failure"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hook.ts --phase=session-end"
           }
         ]
       }

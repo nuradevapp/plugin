@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "fs"
+import { existsSync, readFileSync, writeFileSync } from "fs"
 import { randomUUID } from "crypto"
 import { formatActivity } from "./activity.js"
 import {
@@ -10,7 +10,9 @@ import { connectClient, getPluginSocketPath } from "./ipc.js"
 import { log } from "./log.js"
 import type { PluginMessage, TaskSummary, AskUserQuestion } from "./types.js"
 
-const RELAY_URL = "wss://relay.nuradev.app"
+// Users can point the plugin at a self-hosted relay via the plugin's
+// `relay_url` userConfig option, exported by Claude Code as an env var.
+const RELAY_URL = process.env.CLAUDE_PLUGIN_OPTION_RELAY_URL || "wss://relay.nuradev.app"
 
 function getSessionFile(): string {
   try {
@@ -26,7 +28,21 @@ function getSessionFile(): string {
 
 const SESSION_FILE = getSessionFile()
 
-export type HookPhase = "start" | "end" | "stop" | "session-start"
+export type HookPhase =
+  | "start"          // PreToolUse
+  | "end"            // PostToolUse
+  | "failure"        // PostToolUseFailure
+  | "stop"           // Stop
+  | "stop-failure"   // StopFailure (turn ended with an API error)
+  | "session-start"  // SessionStart
+  | "session-end"    // SessionEnd
+  | "message"        // MessageDisplay (assistant text block shown in terminal)
+  | "notification"   // Notification
+
+const HOOK_PHASES: HookPhase[] = [
+  "start", "end", "failure", "stop", "stop-failure",
+  "session-start", "session-end", "message", "notification",
+]
 
 const SESSION_START_INSTRUCTION = `The user is on their phone via the nuradev plugin, not at the terminal. They cannot see your text blocks — text blocks are invisible to them. The ONLY way the user receives anything you say is if you call the \`reply\` tool. Before any tool call where you would normally write a preamble ("Let me check...", "I'll look at..."), call \`reply\` with that preamble FIRST, then run the tool. Acknowledgments, interim updates between tool calls, decisions, and final answers all go through \`reply\`. A text block without a paired \`reply\` call is a message the user never gets. Each \`reply.text\` is read aloud by TTS, so keep sentences clear, self-contained, and ≤200 chars; put longer content in \`full_content\`.`
 
@@ -36,6 +52,33 @@ export interface HookPayload {
   tool_input?: Record<string, unknown>
   tool_response?: string
   timestamp?: number
+  text?: string               // MessageDisplay
+  reason?: string             // SessionEnd
+  notification_type?: string  // Notification
+  message?: string            // Notification
+  error?: string              // PostToolUseFailure
+  error_type?: string         // StopFailure
+  error_message?: string      // StopFailure
+}
+
+export function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 1) + "…"
+}
+
+const MIRROR_THROTTLE_MS = 1000
+
+// MessageDisplay can fire repeatedly while a text block streams. Dedupe
+// identical text and rate-limit sends so we don't open a relay socket per
+// streamed chunk. State lives in a small per-session tmp file because each
+// hook invocation is a fresh process.
+export function shouldMirror(text: string, statePath: string, now: number = Date.now()): boolean {
+  try {
+    const st = JSON.parse(readFileSync(statePath, "utf8")) as { text?: string; ts?: number }
+    if (st.text === text) return false
+    if (typeof st.ts === "number" && now - st.ts < MIRROR_THROTTLE_MS) return false
+  } catch { /* no state yet — first send */ }
+  try { writeFileSync(statePath, JSON.stringify({ text, ts: now })) } catch { /* best effort */ }
+  return true
 }
 
 function toTaskSummary(input: Record<string, unknown>, fallbackStatus: TaskSummary["status"]): TaskSummary | null {
@@ -71,6 +114,39 @@ export function buildEvents(
     return [{ type: "status", session_id: sessionId, text: "Done." }]
   }
 
+  if (phase === "message") {
+    const text = (payload.text ?? "").trim()
+    if (!text) return []
+    return [{ type: "status", session_id: sessionId, text: truncate(text, 300) }]
+  }
+
+  if (phase === "session-end") {
+    const reason = payload.reason
+    return [{
+      type: "status",
+      session_id: sessionId,
+      text: reason ? `○ Session ended (${reason})` : "○ Session ended",
+    }]
+  }
+
+  if (phase === "notification") {
+    // Permission prompts already reach the phone via the channel permission relay.
+    if (payload.notification_type === "permission_prompt") return []
+    const message = (payload.message ?? "").trim()
+    if (!message) return []
+    return [{ type: "status", session_id: sessionId, text: truncate(`🔔 ${message}`, 300) }]
+  }
+
+  if (phase === "stop-failure") {
+    const kind = payload.error_type ?? "unknown"
+    const detail = (payload.error_message ?? "").trim()
+    return [{
+      type: "status",
+      session_id: sessionId,
+      text: truncate(`⚠ Turn ended with API error (${kind})${detail ? `: ${detail}` : ""}`, 300),
+    }]
+  }
+
   const { tool_use_id, tool_name, tool_input, timestamp } = payload
   if (!tool_use_id || !tool_name) return []
 
@@ -92,10 +168,23 @@ export function buildEvents(
     out.push({ type: "status", session_id: sessionId, text: summary })
   }
 
+  if (phase === "failure") {
+    // The app's activity feed only knows start/end phases, so a failed call
+    // closes as "end" with a marked summary, plus a status line for visibility.
+    const failedSummary = truncate(`✗ ${summary} — failed`, 300)
+    out.push({ type: "status", session_id: sessionId, text: failedSummary })
+    out.push({
+      type: "activity_event",
+      session_id: sessionId,
+      event: { id: tool_use_id, phase: "end", tool, summary: failedSummary, timestamp: ts },
+    })
+    return out
+  }
+
   out.push({
     type: "activity_event",
     session_id: sessionId,
-    event: { id: tool_use_id, phase, tool, summary, timestamp: ts },
+    event: { id: tool_use_id, phase: phase === "start" ? "start" : "end", tool, summary, timestamp: ts },
   })
 
   if (tool_name === "TaskCreate" && phase === "end") {
@@ -199,7 +288,7 @@ async function main() {
   const phaseArg = process.argv.find((a) => a.startsWith("--phase="))?.split("=")[1]
     ?? (process.argv.includes("--stop") ? "stop" : "start")
   const phase = (phaseArg as HookPhase)
-  if (phase !== "start" && phase !== "end" && phase !== "stop" && phase !== "session-start") {
+  if (!HOOK_PHASES.includes(phase)) {
     process.exit(0)
   }
 
@@ -221,6 +310,14 @@ async function main() {
   if (phase !== "stop") {
     const raw = await Bun.stdin.text()
     try { payload = JSON.parse(raw) as HookPayload } catch { /* ignore malformed input */ }
+  }
+
+  // MessageDisplay throttle: skip duplicate/rapid-fire text before opening a socket.
+  if (phase === "message") {
+    const text = (payload.text ?? "").trim()
+    if (!text || !shouldMirror(text, `/tmp/nuradev-msgdisplay.${sessionId}`)) {
+      process.exit(0)
+    }
   }
 
   // AskUserQuestion mobile routing — only on start phase, only when paired and supported.

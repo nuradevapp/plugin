@@ -2,13 +2,24 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js"
 import { readFileSync } from "fs"
-import { basename } from "path"
+import { basename, join } from "path"
 import { z } from "zod"
 import { sendReply, sendReplyWithDetail, sendPermissionRequest, requestPairingCode } from "./relay.js"
 import { imageMediaTypeFromPath, mediaTypeFromPath } from "./attachments.js"
 
+// Keep the MCP server version in lockstep with the plugin manifest instead of
+// a second hand-maintained string.
+function manifestVersion(): string {
+  try {
+    const raw = readFileSync(join(import.meta.dir, "..", ".claude-plugin", "plugin.json"), "utf8")
+    const v = (JSON.parse(raw) as { version?: string }).version
+    if (v) return v
+  } catch { /* fall through */ }
+  return "0.0.0"
+}
+
 export const mcp = new Server(
-  { name: "nuradev", version: "2026.05.14" },
+  { name: "nuradev", version: manifestVersion() },
   {
     capabilities: {
       experimental: {
