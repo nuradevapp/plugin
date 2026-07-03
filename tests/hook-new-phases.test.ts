@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test"
 import { mkdtempSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { buildEvents, shouldMirror, truncate } from "../src/hook"
+import { buildEvents, accumulateDelta, truncate } from "../src/hook"
 
 describe("buildEvents — message phase (MessageDisplay)", () => {
   it("mirrors assistant text as a status message", () => {
@@ -102,24 +102,32 @@ describe("buildEvents — failure phase (PostToolUseFailure)", () => {
   })
 })
 
-describe("shouldMirror", () => {
+describe("accumulateDelta", () => {
   const statePath = () => join(mkdtempSync(join(tmpdir(), "nuradev-test-")), "state.json")
 
-  it("sends the first text", () => {
-    expect(shouldMirror("hello", statePath(), 1000)).toBe(true)
+  it("returns the full text for a single final event", () => {
+    expect(accumulateDelta(statePath(), "m1", 0, "The quick brown fox.", true)).toBe("The quick brown fox.")
   })
 
-  it("dedupes identical text", () => {
+  it("accumulates streamed deltas until final", () => {
     const p = statePath()
-    expect(shouldMirror("hello", p, 1000)).toBe(true)
-    expect(shouldMirror("hello", p, 99999)).toBe(false)
+    expect(accumulateDelta(p, "m1", 0, "The quick ", false)).toBeNull()
+    expect(accumulateDelta(p, "m1", 0, "brown ", false)).toBeNull()
+    expect(accumulateDelta(p, "m1", 0, "fox.", true)).toBe("The quick brown fox.")
   })
 
-  it("throttles rapid-fire different text within 1s", () => {
+  it("keeps concurrent message_id/index streams separate", () => {
     const p = statePath()
-    expect(shouldMirror("chunk one", p, 1000)).toBe(true)
-    expect(shouldMirror("chunk one two", p, 1500)).toBe(false)
-    expect(shouldMirror("chunk one two three", p, 2100)).toBe(true)
+    expect(accumulateDelta(p, "m1", 0, "first ", false)).toBeNull()
+    expect(accumulateDelta(p, "m2", 0, "second block", true)).toBe("second block")
+    expect(accumulateDelta(p, "m1", 1, "other index", true)).toBe("other index")
+    expect(accumulateDelta(p, "m1", 0, "block", true)).toBe("first block")
+  })
+
+  it("clears the buffer entry after final so a repeat starts fresh", () => {
+    const p = statePath()
+    expect(accumulateDelta(p, "m1", 0, "once", true)).toBe("once")
+    expect(accumulateDelta(p, "m1", 0, "twice", true)).toBe("twice")
   })
 })
 

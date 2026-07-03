@@ -32,7 +32,7 @@ The plugin works with zero configuration. One optional setting is prompted when 
 
 ## Versioning
 
-Releases use [calver](https://calver.org) in `YYYY.MM.DD` format. The same string lives in three places (`.claude-plugin/plugin.json`, `package.json`, `.claude-plugin/marketplace.json`) and gets bumped together on each release.
+Releases use [calver](https://calver.org) in `YYYY.MM.DD` format, with a `.N` suffix for same-day follow-ups. The same string lives in three places (`.claude-plugin/plugin.json`, `package.json`, `.claude-plugin/marketplace.json`) and gets bumped together on each release.
 
 ## Manual hook installation
 

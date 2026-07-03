@@ -38,20 +38,19 @@ export const mcp = new Server(
       '\n' +
       'Rules by message kind:\n' +
       '1. System events (channel tag without a chat_id attribute — pairing codes, connection status, tool status): display the content verbatim (preserve line breaks and box drawing). Do NOT call the reply tool. Update your pair-state tracking based on the content as described above.\n' +
-      '2. Voice messages (channel tag has a chat_id attribute): the user spoke this. Process it exactly like a terminal-initiated turn — every text block you produce is mirrored to the phone per the rule below, so the user hears your natural narration as you go. Do NOT inject synthetic acks ("On it!", "Got it") that you would not otherwise produce in a terminal session — just start working and narrate naturally.\n' +
+      '2. User messages (channel tag has a chat_id attribute): the user typed or spoke this on their phone. Process it exactly like a terminal-initiated turn — just start working and narrate naturally in text blocks. Do NOT inject synthetic acks ("On it!", "Got it") that you would not otherwise produce in a terminal session.\n' +
       '   2a. Attachments: if the channel content begins with "[image attached: <path>]" or "[file attached: <name> → <path>]", IMMEDIATELY call the Read tool on that path so you can see the image/file content, then proceed with the user instruction that follows on the next line.\n' +
       '\n' +
-      'When PAIRED, mirror everything: you MUST call the reply tool for EVERY user-facing text block you produce — preambles like "Let me check...", interim updates between tool calls, acknowledgments, and final responses. Each text block becomes one reply call, in the order it would appear in the terminal. This applies to both voice-initiated AND terminal-initiated work. When UNPAIRED, do not call the reply tool at all.\n' +
+      'Text mirroring is automatic: every text block you write in the terminal is mirrored to the phone as a chat message by the plugin itself — the user sees your words without you doing anything. Do NOT call the reply tool to repeat, summarize, or acknowledge text you already wrote; it would appear twice on the phone.\n' +
       '\n' +
-      'Progress cadence (PAIRED only): in addition to mirroring every text block (above), if you find yourself running tool calls without producing user-facing text, you MUST still call reply at intervals — at least every 2-3 tool calls (roughly every 15 seconds of activity). Never let a long tool-heavy stretch pass in silence. Each interim reply MUST be substantive: state what you just found, decided, or are about to do next (e.g. "Found the auth bug in middleware.ts, patching it now", "Three tests fail — looking at the first", "Read the relay, now checking the hook"). Do NOT send filler replies like "still working", "still digging", "one moment", "let me think", "almost done", or "working on it" — a reply that does not tell the user something concrete is worse than no reply.\n' +
+      'Progress cadence: since text blocks mirror automatically, narrate the way you would for a teammate watching the terminal — a brief text block every 2-3 tool calls stating what you just found, decided, or are about to do next. Never let a long tool-heavy stretch pass in silence, and never write filler ("still working", "one moment") — say something concrete or nothing.\n' +
       '\n' +
-      'reply tool params:\n' +
-      '- `text`: TTS-friendly summary, ≤200 chars (it is read aloud).\n' +
-      '- `full_content`: the complete response, when longer than ~2 sentences.\n' +
-      '- `image_path`: absolute path to an image file to attach. STRONGLY PREFER this over `image_base64`. For screenshots (e.g. Playwright `browser_take_screenshot`), pass a `filename` so the file is saved to disk, then forward that path here. Never inline base64 unless you already have raw bytes with no path.\n' +
+      'reply tool — attachments only: call it exclusively to send a file or image to the phone.\n' +
+      '- `text`: short caption for the attachment (1 sentence).\n' +
+      '- `image_path`: absolute path to an image to attach. STRONGLY PREFER this over `image_base64`. For screenshots (e.g. Playwright `browser_take_screenshot`), pass a `filename` so the file is saved to disk, then forward that path here.\n' +
       '- `file_path`: absolute path to a non-image file to attach (PDF, JSON, markdown, text, CSV, archives, etc.). Plugin reads, encodes, names, and detects media type from the file. Mutually exclusive with `image_path` / `image_base64`.\n' +
       '\n' +
-      'Attaching written documents: when you write a markdown document for the user to read (a spec, plan, design doc, summary, review notes, etc.), attach it to your reply via `file_path` rather than only stating the path. The phone can render the markdown so the user can read it in place. Example: instead of "Spec written at /…/spec.md, please review", call `reply` with `file_path: "/…/spec.md"` and a TTS-friendly `text` like "Spec written, sending it over." This applies generally to user-facing documents you write for review — not to code, configs, or other working artifacts that the user is unlikely to read end-to-end.',
+      'Attaching written documents: when you write a markdown document for the user to read (a spec, plan, design doc, summary, review notes, etc.), attach it via `file_path` rather than only stating the path — the phone renders the markdown so the user can read it in place. This applies to user-facing documents for review, not to code, configs, or other working artifacts.',
   }
 )
 
@@ -59,17 +58,17 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: "reply",
-      description: "Send a reply to the Nura Dev mobile app (nuradev.app)",
+      description: "Attach an image or file to the Nura Dev chat on the user's phone (nuradev.app). Terminal text blocks are mirrored to the phone automatically — call this ONLY to send an attachment, never to repeat text you already wrote.",
       inputSchema: {
         type: "object",
         properties: {
           text: {
             type: "string",
-            description: "Reply for text-to-speech — keep it concise, max ~200 chars",
+            description: "Short caption shown with the attachment (1 sentence)",
           },
           full_content: {
             type: "string",
-            description: "Full response shown when user taps the card. Use when reply is longer than 2 sentences.",
+            description: "Optional long-form body shown when the user taps the card. Rarely needed — text blocks mirror automatically.",
           },
           image_path: {
             type: "string",

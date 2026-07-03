@@ -44,7 +44,7 @@ const HOOK_PHASES: HookPhase[] = [
   "session-start", "session-end", "message", "notification",
 ]
 
-const SESSION_START_INSTRUCTION = `The user is on their phone via the nuradev plugin, not at the terminal. They cannot see your text blocks — text blocks are invisible to them. The ONLY way the user receives anything you say is if you call the \`reply\` tool. Before any tool call where you would normally write a preamble ("Let me check...", "I'll look at..."), call \`reply\` with that preamble FIRST, then run the tool. Acknowledgments, interim updates between tool calls, decisions, and final answers all go through \`reply\`. A text block without a paired \`reply\` call is a message the user never gets. Each \`reply.text\` is read aloud by TTS, so keep sentences clear, self-contained, and ≤200 chars; put longer content in \`full_content\`.`
+const SESSION_START_INSTRUCTION = `The user is on their phone via the nuradev plugin, not at the terminal. Every text block you write is mirrored to their phone automatically as a chat message — write natural terminal narration and it reaches them; nothing extra is required. Do NOT call the \`reply\` tool to repeat or summarize text you already wrote — it would appear twice on the phone. Use \`reply\` only to attach an image (\`image_path\`, e.g. Playwright screenshots) or a file (\`file_path\` — specs, plans, docs the user should read), with a short caption in \`text\`. Narrate frequently: a brief, concrete text block every few tool calls keeps the user informed while away from the terminal.`
 
 export interface HookPayload {
   tool_use_id?: string
@@ -52,7 +52,11 @@ export interface HookPayload {
   tool_input?: Record<string, unknown>
   tool_response?: string
   timestamp?: number
-  text?: string               // MessageDisplay
+  text?: string               // MessageDisplay (assembled full block — set by main from deltas)
+  delta?: string              // MessageDisplay (wire format: text arrives as deltas)
+  final?: boolean             // MessageDisplay
+  message_id?: string         // MessageDisplay
+  index?: number              // MessageDisplay
   reason?: string             // SessionEnd
   notification_type?: string  // Notification
   message?: string            // Notification
@@ -65,20 +69,38 @@ export function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max - 1) + "…"
 }
 
-const MIRROR_THROTTLE_MS = 1000
-
-// MessageDisplay can fire repeatedly while a text block streams. Dedupe
-// identical text and rate-limit sends so we don't open a relay socket per
-// streamed chunk. State lives in a small per-session tmp file because each
-// hook invocation is a fresh process.
-export function shouldMirror(text: string, statePath: string, now: number = Date.now()): boolean {
+// MessageDisplay delivers text as deltas per (message_id, index) with a
+// `final` flag on the last one — usually a single final event carrying the
+// whole block, but streamed display can split it. Each hook invocation is a
+// fresh process, so partial blocks accumulate in a small per-session tmp
+// file. Returns the assembled block when this event completes it, else null.
+export function accumulateDelta(
+  statePath: string,
+  messageId: string,
+  index: number,
+  delta: string,
+  final: boolean,
+): string | null {
+  const key = `${messageId}:${index}`
+  let buf: Record<string, string> = {}
   try {
-    const st = JSON.parse(readFileSync(statePath, "utf8")) as { text?: string; ts?: number }
-    if (st.text === text) return false
-    if (typeof st.ts === "number" && now - st.ts < MIRROR_THROTTLE_MS) return false
-  } catch { /* no state yet — first send */ }
-  try { writeFileSync(statePath, JSON.stringify({ text, ts: now })) } catch { /* best effort */ }
-  return true
+    const parsed = JSON.parse(readFileSync(statePath, "utf8"))
+    if (parsed && typeof parsed === "object") buf = parsed
+  } catch { /* no state yet */ }
+
+  const assembled = (buf[key] ?? "") + delta
+  if (final) {
+    delete buf[key]
+    try { writeFileSync(statePath, JSON.stringify(buf)) } catch { /* best effort */ }
+    return assembled
+  }
+  buf[key] = assembled
+  // A crashed stream could leave orphaned partials behind; don't let the
+  // buffer file grow without bound.
+  const keys = Object.keys(buf)
+  if (keys.length > 32) delete buf[keys[0]]
+  try { writeFileSync(statePath, JSON.stringify(buf)) } catch { /* best effort */ }
+  return null
 }
 
 function toTaskSummary(input: Record<string, unknown>, fallbackStatus: TaskSummary["status"]): TaskSummary | null {
@@ -222,6 +244,36 @@ async function sendMessages(messages: PluginMessage[]): Promise<void> {
 }
 
 const IPC_CONNECT_TIMEOUT_MS = 1000
+const MIRROR_ACK_TIMEOUT_MS = 2000
+
+// Deliver a completed assistant text block to the plugin process, which sends
+// it up its authenticated relay connection as a persisted `reply`. Returns
+// false when the plugin process can't be reached or doesn't ack in time.
+export async function sendMirrorText(sessionId: string, text: string, socketPathOverride?: string): Promise<boolean> {
+  let client
+  try {
+    client = await connectClient(socketPathOverride ?? getPluginSocketPath(sessionId), IPC_CONNECT_TIMEOUT_MS)
+  } catch (err) {
+    log("hook:mirror:no-ipc", { error: (err as Error).message })
+    return false
+  }
+  return new Promise<boolean>((resolve) => {
+    let settled = false
+    const finish = (ok: boolean) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      try { client!.close() } catch { /* ignore */ }
+      resolve(ok)
+    }
+    const timer = setTimeout(() => finish(false), MIRROR_ACK_TIMEOUT_MS)
+    client!.onMessage((m: any) => {
+      if (m?.type === "mirror_text_ack") finish(true)
+    })
+    client!.onClose(() => finish(false))
+    client!.send({ type: "mirror_text", session_id: sessionId, text })
+  })
+}
 
 interface Verdict {
   request_id: string
@@ -312,12 +364,22 @@ async function main() {
     try { payload = JSON.parse(raw) as HookPayload } catch { /* ignore malformed input */ }
   }
 
-  // MessageDisplay throttle: skip duplicate/rapid-fire text before opening a socket.
+  // MessageDisplay: assemble streamed deltas, then hand the completed block to
+  // the plugin process over IPC so it reaches the phone as a persisted chat
+  // message. Falls back to an ephemeral status line when the plugin process
+  // isn't reachable (e.g. an older plugin build is still running).
   if (phase === "message") {
-    const text = (payload.text ?? "").trim()
-    if (!text || !shouldMirror(text, `/tmp/nuradev-msgdisplay.${sessionId}`)) {
-      process.exit(0)
-    }
+    const delta = payload.delta ?? payload.text ?? ""
+    const full = accumulateDelta(
+      `/tmp/nuradev-msgbuf.${sessionId}.json`,
+      payload.message_id ?? "m",
+      payload.index ?? 0,
+      delta,
+      payload.final ?? true,
+    )
+    if (full === null || !full.trim()) process.exit(0)
+    if (await sendMirrorText(sessionId, full)) process.exit(0)
+    payload.text = full // IPC unavailable — fall through to the status fallback
   }
 
   // AskUserQuestion mobile routing — only on start phase, only when paired and supported.

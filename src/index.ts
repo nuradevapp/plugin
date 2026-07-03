@@ -7,6 +7,7 @@ import {
   setAskUserQuestionVerdictHandler,
   setSessionReadyHandler,
   getSessionId,
+  sendReply,
   sendThinking,
   sendActivityClear,
   sendAskUserQuestion,
@@ -63,6 +64,13 @@ async function main() {
     setAskUserQuestionVerdictHandler((msg) => broker!.onRelayVerdict(msg))
     try {
       ipcServer = await startServer(getPluginSocketPath(sessionId), (conn, msg) => {
+        // MessageDisplay hook forwards completed assistant text blocks here so
+        // they ride the authenticated relay connection as persisted messages.
+        if (msg?.type === "mirror_text" && typeof msg.text === "string") {
+          sendReply(msg.text)
+          conn.send({ type: "mirror_text_ack" })
+          return
+        }
         broker!.onIpcMessage(conn, msg)
       })
       log("auq:ipc:bound", { sessionId, path: getPluginSocketPath(sessionId) })
