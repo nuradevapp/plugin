@@ -1,8 +1,8 @@
 import { describe, it, expect } from "bun:test"
-import { mkdtempSync } from "fs"
+import { mkdtempSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { buildEvents, accumulateDelta, truncate } from "../src/hook"
+import { buildEvents, appendDelta, assembleFromLog, findBlockInTranscript, truncate } from "../src/hook"
 
 describe("buildEvents — message phase (MessageDisplay)", () => {
   it("mirrors assistant text as a status message", () => {
@@ -102,32 +102,65 @@ describe("buildEvents — failure phase (PostToolUseFailure)", () => {
   })
 })
 
-describe("accumulateDelta", () => {
-  const statePath = () => join(mkdtempSync(join(tmpdir(), "nuradev-test-")), "state.json")
+describe("appendDelta + assembleFromLog", () => {
+  const logPath = () => join(mkdtempSync(join(tmpdir(), "nuradev-test-")), "buf.log")
 
-  it("returns the full text for a single final event", () => {
-    expect(accumulateDelta(statePath(), "m1", 0, "The quick brown fox.", true)).toBe("The quick brown fox.")
+  it("assembles appended deltas in order", () => {
+    const p = logPath()
+    appendDelta(p, "m1:0", "The quick ")
+    appendDelta(p, "m1:0", "brown ")
+    appendDelta(p, "m1:0", "fox.")
+    expect(assembleFromLog(p, "m1:0")).toBe("The quick brown fox.")
   })
 
-  it("accumulates streamed deltas until final", () => {
-    const p = statePath()
-    expect(accumulateDelta(p, "m1", 0, "The quick ", false)).toBeNull()
-    expect(accumulateDelta(p, "m1", 0, "brown ", false)).toBeNull()
-    expect(accumulateDelta(p, "m1", 0, "fox.", true)).toBe("The quick brown fox.")
+  it("keeps other blocks' entries intact after assembling one", () => {
+    const p = logPath()
+    appendDelta(p, "m1:0", "first ")
+    appendDelta(p, "m2:0", "second ")
+    appendDelta(p, "m1:0", "block")
+    expect(assembleFromLog(p, "m1:0")).toBe("first block")
+    expect(assembleFromLog(p, "m2:0")).toBe("second ")
   })
 
-  it("keeps concurrent message_id/index streams separate", () => {
-    const p = statePath()
-    expect(accumulateDelta(p, "m1", 0, "first ", false)).toBeNull()
-    expect(accumulateDelta(p, "m2", 0, "second block", true)).toBe("second block")
-    expect(accumulateDelta(p, "m1", 1, "other index", true)).toBe("other index")
-    expect(accumulateDelta(p, "m1", 0, "block", true)).toBe("first block")
+  it("clears assembled entries so a repeated key starts fresh", () => {
+    const p = logPath()
+    appendDelta(p, "m1:0", "once")
+    expect(assembleFromLog(p, "m1:0")).toBe("once")
+    appendDelta(p, "m1:0", "twice")
+    expect(assembleFromLog(p, "m1:0")).toBe("twice")
   })
 
-  it("clears the buffer entry after final so a repeat starts fresh", () => {
-    const p = statePath()
-    expect(accumulateDelta(p, "m1", 0, "once", true)).toBe("once")
-    expect(accumulateDelta(p, "m1", 0, "twice", true)).toBe("twice")
+  it("returns empty string when the log doesn't exist", () => {
+    expect(assembleFromLog(join(tmpdir(), "nuradev-none.log"), "m1:0")).toBe("")
+  })
+})
+
+describe("findBlockInTranscript", () => {
+  const transcript = () => {
+    const p = join(mkdtempSync(join(tmpdir(), "nuradev-test-")), "t.jsonl")
+    const lines = [
+      { type: "user", message: { content: "hi" } },
+      { type: "assistant", uuid: "u1", message: { id: "msg_1", content: [{ type: "text", text: "Part one of the design.\n\nPart two looks good." }] } },
+      { type: "assistant", uuid: "u2", message: { id: "msg_2", content: [{ type: "tool_use", name: "Bash" }, { type: "text", text: "Running the tests now." }] } },
+    ]
+    writeFileSync(p, lines.map((l) => JSON.stringify(l)).join("\n") + "\n")
+    return p
+  }
+
+  it("recovers the full block from the final delta suffix", () => {
+    expect(findBlockInTranscript(transcript(), "Part two looks good.")).toBe(
+      "Part one of the design.\n\nPart two looks good.",
+    )
+  })
+
+  it("matches newest-first and skips non-text content", () => {
+    expect(findBlockInTranscript(transcript(), "the tests now.")).toBe("Running the tests now.")
+  })
+
+  it("returns null when nothing matches or the file is missing", () => {
+    expect(findBlockInTranscript(transcript(), "no such tail")).toBeNull()
+    expect(findBlockInTranscript(join(tmpdir(), "nuradev-none.jsonl"), "x")).toBeNull()
+    expect(findBlockInTranscript(transcript(), "  ")).toBeNull()
   })
 })
 

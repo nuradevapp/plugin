@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "fs"
+import { existsSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync } from "fs"
 import { randomUUID } from "crypto"
 import { formatActivity } from "./activity.js"
 import {
@@ -52,6 +52,7 @@ export interface HookPayload {
   tool_input?: Record<string, unknown>
   tool_response?: string
   timestamp?: number
+  transcript_path?: string    // all events
   text?: string               // MessageDisplay (assembled full block — set by main from deltas)
   delta?: string              // MessageDisplay (wire format: text arrives as deltas)
   final?: boolean             // MessageDisplay
@@ -69,37 +70,90 @@ export function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max - 1) + "…"
 }
 
-// MessageDisplay delivers text as deltas per (message_id, index) with a
-// `final` flag on the last one — usually a single final event carrying the
-// whole block, but streamed display can split it. Each hook invocation is a
-// fresh process, so partial blocks accumulate in a small per-session tmp
-// file. Returns the assembled block when this event completes it, else null.
-export function accumulateDelta(
-  statePath: string,
-  messageId: string,
-  index: number,
-  delta: string,
-  final: boolean,
-): string | null {
-  const key = `${messageId}:${index}`
-  let buf: Record<string, string> = {}
+// MessageDisplay delivers a streamed text block as many delta events, each in
+// its OWN hook process, possibly running concurrently. A read-modify-write
+// buffer file loses chunks when those processes race, so deltas go to an
+// append-only log instead — O_APPEND writes are atomic, and the final event
+// re-reads the log to assemble the block.
+export function appendDelta(logPath: string, key: string, delta: string): void {
   try {
-    const parsed = JSON.parse(readFileSync(statePath, "utf8"))
-    if (parsed && typeof parsed === "object") buf = parsed
-  } catch { /* no state yet */ }
+    // A stream that never got its final event (interrupt, crash) would leave
+    // the log growing forever; reset rather than cap per-key.
+    if (statSync(logPath).size > 1_000_000) unlinkSync(logPath)
+  } catch { /* no log yet */ }
+  try {
+    appendFileSync(logPath, JSON.stringify({ key, delta }) + "\n")
+  } catch { /* best effort */ }
+}
 
-  const assembled = (buf[key] ?? "") + delta
-  if (final) {
-    delete buf[key]
-    try { writeFileSync(statePath, JSON.stringify(buf)) } catch { /* best effort */ }
-    return assembled
+export function assembleFromLog(logPath: string, key: string): string {
+  let lines: string[] = []
+  try {
+    lines = readFileSync(logPath, "utf8").split("\n")
+  } catch {
+    return ""
   }
-  buf[key] = assembled
-  // A crashed stream could leave orphaned partials behind; don't let the
-  // buffer file grow without bound.
-  const keys = Object.keys(buf)
-  if (keys.length > 32) delete buf[keys[0]]
-  try { writeFileSync(statePath, JSON.stringify(buf)) } catch { /* best effort */ }
+  const parts: string[] = []
+  const rest: string[] = []
+  for (const line of lines) {
+    if (!line) continue
+    try {
+      const entry = JSON.parse(line) as { key?: string; delta?: string }
+      if (entry.key === key && typeof entry.delta === "string") {
+        parts.push(entry.delta)
+        continue
+      }
+    } catch { continue }
+    rest.push(line)
+  }
+  // Drop this block's entries; best effort — a concurrent append for another
+  // block can be lost here, but blocks stream sequentially in practice.
+  try { writeFileSync(logPath, rest.length ? rest.join("\n") + "\n" : "") } catch { /* ignore */ }
+  return parts.join("")
+}
+
+// The transcript JSONL is the canonical copy of every assistant text block,
+// immune to delta-log races. The MessageDisplay message_id is a display-stream
+// id that does NOT appear in the transcript, so the block is located by
+// matching the final delta as a suffix of the block text, newest-first.
+export function findBlockInTranscript(transcriptPath: string, tailDelta: string): string | null {
+  const tail = tailDelta.trim()
+  if (!tail) return null
+  let raw: string
+  try {
+    raw = readFileSync(transcriptPath, "utf8")
+  } catch {
+    return null
+  }
+  const lines = raw.split("\n").slice(-200)
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i]) continue
+    let entry: any
+    try { entry = JSON.parse(lines[i]) } catch { continue }
+    if (entry?.type !== "assistant") continue
+    const content = entry.message?.content
+    if (!Array.isArray(content)) continue
+    for (let j = content.length - 1; j >= 0; j--) {
+      const block = content[j]
+      if (block?.type === "text" && typeof block.text === "string" && block.text.trim().endsWith(tail)) {
+        return block.text
+      }
+    }
+  }
+  return null
+}
+
+const TRANSCRIPT_RETRIES = 5
+const TRANSCRIPT_RETRY_DELAY_MS = 150
+
+// The final display event can fire before the transcript line is flushed.
+async function findBlockWithRetry(transcriptPath: string | undefined, tailDelta: string): Promise<string | null> {
+  if (!transcriptPath) return null
+  for (let attempt = 0; attempt < TRANSCRIPT_RETRIES; attempt++) {
+    const found = findBlockInTranscript(transcriptPath, tailDelta)
+    if (found !== null) return found
+    await new Promise((r) => setTimeout(r, TRANSCRIPT_RETRY_DELAY_MS))
+  }
   return null
 }
 
@@ -364,20 +418,24 @@ async function main() {
     try { payload = JSON.parse(raw) as HookPayload } catch { /* ignore malformed input */ }
   }
 
-  // MessageDisplay: assemble streamed deltas, then hand the completed block to
-  // the plugin process over IPC so it reaches the phone as a persisted chat
-  // message. Falls back to an ephemeral status line when the plugin process
-  // isn't reachable (e.g. an older plugin build is still running).
+  // MessageDisplay: buffer streamed deltas; on the final one, prefer the
+  // complete block from the transcript (canonical), fall back to the
+  // assembled deltas, and hand the result to the plugin process over IPC so
+  // it reaches the phone as a persisted chat message. Falls back to an
+  // ephemeral status line when the plugin process isn't reachable.
   if (phase === "message") {
     const delta = payload.delta ?? payload.text ?? ""
-    const full = accumulateDelta(
-      `/tmp/nuradev-msgbuf.${sessionId}.json`,
-      payload.message_id ?? "m",
-      payload.index ?? 0,
-      delta,
-      payload.final ?? true,
-    )
-    if (full === null || !full.trim()) process.exit(0)
+    const logPath = `/tmp/nuradev-msgbuf.${sessionId}.log`
+    const key = `${payload.message_id ?? "m"}:${payload.index ?? 0}`
+    const final = payload.final ?? true
+    if (!final) {
+      if (delta) appendDelta(logPath, key, delta)
+      process.exit(0)
+    }
+    if (delta) appendDelta(logPath, key, delta)
+    const assembled = assembleFromLog(logPath, key)
+    const full = (await findBlockWithRetry(payload.transcript_path, delta || assembled)) ?? assembled
+    if (!full.trim()) process.exit(0)
     if (await sendMirrorText(sessionId, full)) process.exit(0)
     payload.text = full // IPC unavailable — fall through to the status fallback
   }
