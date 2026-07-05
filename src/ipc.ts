@@ -88,6 +88,42 @@ export async function startServer(
   }
 }
 
+// A single IPC server that can follow a moving socket path. The plugin's socket
+// is keyed by session id, and the session id changes whenever a new chat starts.
+// Binding once (on first connect) leaves the hook connecting to a path nothing
+// listens on, so every AskUserQuestion + text-mirror hop silently fails. This
+// wrapper stops the old listener and binds the new path on each session change.
+export interface RebindableServer {
+  rebind(socketPath: string): Promise<void>
+  stop(): Promise<void>
+  currentPath(): string | null
+}
+
+export function createRebindableServer(onMessage: ServerMessageHandler): RebindableServer {
+  let server: IpcServer | null = null
+  let path: string | null = null
+
+  return {
+    async rebind(socketPath) {
+      if (path === socketPath && server) return
+      if (server) {
+        try { await server.stop() } catch { /* ignore */ }
+        server = null
+      }
+      server = await startServer(socketPath, onMessage)
+      path = socketPath
+    },
+    async stop() {
+      if (server) {
+        try { await server.stop() } catch { /* ignore */ }
+        server = null
+      }
+      path = null
+    },
+    currentPath() { return path },
+  }
+}
+
 export async function connectClient(
   socketPath: string,
   timeoutMs: number

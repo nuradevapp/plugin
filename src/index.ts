@@ -17,7 +17,7 @@ import {
 import { mcp, connectMcp, sendChannelEvent } from "./mcp.js"
 import { log } from "./log.js"
 import { saveAttachment, formatAttachmentRef } from "./attachments.js"
-import { startServer, getPluginSocketPath, type IpcServer } from "./ipc.js"
+import { createRebindableServer, getPluginSocketPath, type RebindableServer } from "./ipc.js"
 import { createBroker, type Broker } from "./plugin-auq.js"
 import type { PluginMessage } from "./types.js"
 
@@ -47,23 +47,27 @@ async function main() {
   // Route relay channel events (pairing code, paired, disconnect, reconnect) to MCP
   setChannelEventHandler(sendChannelEvent)
 
-  let ipcServer: IpcServer | null = null
+  let ipcServer: RebindableServer | null = null
   let broker: Broker | null = null
 
+  // Fires on first connect AND whenever the session id changes (new chat). The
+  // IPC socket path is session-keyed, so it must follow the session — otherwise
+  // the hook connects to a stale path and every AUQ/mirror hop fails silently.
   const startAuqBroker = async (sessionId: string) => {
-    if (broker) return
-    broker = createBroker({
-      sendToRelay: (msg: PluginMessage) => {
-        if (msg.type === "ask_user_question") {
-          sendAskUserQuestion(msg.session_id, msg.request_id, msg.questions)
-        } else if (msg.type === "cancel_ask_user_question") {
-          sendCancelAskUserQuestion(msg.session_id, msg.request_id)
-        }
-      },
-    })
-    setAskUserQuestionVerdictHandler((msg) => broker!.onRelayVerdict(msg))
-    try {
-      ipcServer = await startServer(getPluginSocketPath(sessionId), (conn, msg) => {
+    if (!broker) {
+      broker = createBroker({
+        sendToRelay: (msg: PluginMessage) => {
+          if (msg.type === "ask_user_question") {
+            sendAskUserQuestion(msg.session_id, msg.request_id, msg.questions)
+          } else if (msg.type === "cancel_ask_user_question") {
+            sendCancelAskUserQuestion(msg.session_id, msg.request_id)
+          }
+        },
+      })
+      setAskUserQuestionVerdictHandler((msg) => broker!.onRelayVerdict(msg))
+    }
+    if (!ipcServer) {
+      ipcServer = createRebindableServer((conn, msg) => {
         // MessageDisplay hook forwards completed assistant text blocks here so
         // they ride the authenticated relay connection as persisted messages.
         if (msg?.type === "mirror_text" && typeof msg.text === "string") {
@@ -73,6 +77,9 @@ async function main() {
         }
         broker!.onIpcMessage(conn, msg)
       })
+    }
+    try {
+      await ipcServer.rebind(getPluginSocketPath(sessionId))
       log("auq:ipc:bound", { sessionId, path: getPluginSocketPath(sessionId) })
     } catch (err) {
       log("auq:ipc:bind-failed", { sessionId, error: (err as Error).message })

@@ -75,10 +75,15 @@ function handleMessage(msg: RelayMessage) {
   switch (msg.type) {
     case "registered": {
       const isFirstConnect = sessionId === null
+      // The session id changes when a new chat starts. The IPC socket path is
+      // session-keyed, so onSessionReady must fire on every change (not just the
+      // first connect) to rebind the server — otherwise the hook connects to a
+      // dead path and AskUserQuestion + text mirroring silently fall through.
+      const sessionChanged = sessionId !== msg.sessionId
       sessionId = msg.sessionId
       Bun.write(`/tmp/nuradev-session.${process.ppid}`, msg.sessionId).catch(() => {})
       if (paired) updateSessionId(cwd, msg.sessionId)
-      if (isFirstConnect) onSessionReady(msg.sessionId)
+      if (sessionChanged) onSessionReady(msg.sessionId)
       if (!isFirstConnect) {
         // WebSocket reconnect within the same session — skip re-pairing
         showReconnected()
