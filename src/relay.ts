@@ -85,9 +85,12 @@ function handleMessage(msg: RelayMessage) {
       if (paired) updateSessionId(cwd, msg.sessionId)
       if (sessionChanged) onSessionReady(msg.sessionId)
       if (!isFirstConnect) {
-        // WebSocket reconnect within the same session — skip re-pairing
+        // WebSocket reconnect within the same session — skip re-pairing.
+        // Terminal-only: do NOT emit a channel event. Channel events get
+        // echoed and auto-mirrored to the phone chat, so a flaky link that
+        // reconnects repeatedly would spam "✓ Nura Dev reconnected" into the
+        // conversation. The terminal indicator is enough for the human here.
         showReconnected()
-        onChannelEvent("✓ Nura Dev reconnected", { event: "app_reconnected" })
       } else if (!paired) {
         // New directory — request a pairing code
         ws!.send(JSON.stringify({ type: "request_pairing_code", deviceName: hostname() }))
@@ -163,17 +166,13 @@ function handleMessage(msg: RelayMessage) {
       break
 
     case "app_disconnected":
+      // Terminal-only — see the reconnect note above. Connection blips must
+      // not surface as channel events, or they get mirrored into the phone chat.
       showDisconnected()
-      onChannelEvent(
-        "○ Nura Dev disconnected\n" +
-        "  Waiting for reconnect from nuradev.app...",
-        { event: "app_disconnected" }
-      )
       break
 
     case "app_reconnected":
       showReconnected()
-      onChannelEvent("✓ Nura Dev reconnected", { event: "app_reconnected" })
       break
 
     case "command":
