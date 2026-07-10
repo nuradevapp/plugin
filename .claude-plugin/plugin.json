@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "nuradev",
   "displayName": "Nura Dev",
-  "version": "2026.07.05",
+  "version": "2026.07.10",
   "description": "Control your Claude Code session by voice from your phone — nuradev.app",
   "author": { "name": "Nura Dev", "email": "support@nuradev.app" },
   "homepage": "https://nuradev.app",
